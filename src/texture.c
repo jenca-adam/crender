@@ -195,7 +195,7 @@ Texture *Texture_read(char *fn) {
   }
 }
 
-Vec3 Texture_getuv(Texture *texture, Vec3 uv) {
+inline Vec3 Texture_getuv(Texture *texture, Vec3 uv) {
   return texture
       ->m[(int)fabs(texture->height - clamp(uv.y, 0, 1) * texture->height)]
          [(int)fabs(clamp(uv.x, 0, 1) * texture->width)];
@@ -220,11 +220,16 @@ void Texture_draw_face(LinearTexture texture, int width, int height, Face *face,
   Triangle uvs = Face_gettri(face, UV);
   Triangle vns = Face_gettri(face, NORMAL);
   Triangle tri = Triangle_transform(world_tri, transform);
+  double x0 = tri.v0.x, y0 = tri.v0.y, z0 = tri.v0.z;
+  double x1 = tri.v1.x, y1 = tri.v1.y, z1 = tri.v1.z;
+  double x2 = tri.v2.x, y2 = tri.v2.y, z2 = tri.v2.z;
 
-  int minx = fmin3(tri.v0.x, tri.v1.x, tri.v2.x);
-  int maxx = fmax3(tri.v0.x, tri.v1.x, tri.v2.x);
-  int miny = fmin3(tri.v0.y, tri.v1.y, tri.v2.y);
-  int maxy = fmax3(tri.v0.y, tri.v1.y, tri.v2.y);
+  // Triangle_bary_precomp(&tri);
+  double bary_denom = 1 / ((x2 - x0) * (y1 - y0) - (x1 - x0) * (y2 - y0));
+  int minx = fmin3(x0, x1, x2);
+  int maxx = fmax3(x0, x1, x2);
+  int miny = fmin3(y0, y1, y2);
+  int maxy = fmax3(y0, y1, y2);
 
   Vec3 b;
   double tw = width;
@@ -244,11 +249,11 @@ void Texture_draw_face(LinearTexture texture, int width, int height, Face *face,
       if (y < 0) {
         continue;
       }
-      b = barycentric(tri.v0, tri.v1, tri.v2, x, y);
+      b = barycentric(tri.v0, tri.v1, tri.v2, x, y, bary_denom);
       if (b.x < -EPSILON || b.y < -EPSILON || b.z < -EPSILON) {
         continue;
       }
-      double z = tri.v0.z * b.x + tri.v1.z * b.y + tri.v2.z * b.z;
+      double z = z0 * b.x + z1 * b.y + z2 * b.z;
       int zbuffix = x + y * tw;
       if (zbuffer[zbuffix] < z) {
         double spec, specpow;
@@ -268,8 +273,6 @@ void Texture_draw_face(LinearTexture texture, int width, int height, Face *face,
           specpow = Texture_getuv(specular_map, uv).x;
         }
         Vec3 normal_transformed = Vec3_transform(normal, inverse_transform);
-        Vec3 normal_transformed_normalized =
-            Vec3_normalized(normal_transformed);
         double d = Vec3_dot(normal, ldir);
 
         Vec3 normal_times_d = Vec3_mul(normal, 2.0 * d);

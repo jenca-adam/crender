@@ -1,13 +1,12 @@
 #include "core.h"
+#include "tri.h"
 #include <math.h>
 #include <stdlib.h>
-inline Vec3 barycentric(Vec3 v0, Vec3 v1, Vec3 v2, double px, double py) {
+inline Vec3 barycentric(Vec3 v0, Vec3 v1, Vec3 v2, double px, double py,
+                        double denom) {
   double x0 = v0.x, y0 = v0.y;
   double x1 = v1.x, y1 = v1.y;
   double x2 = v2.x, y2 = v2.y;
-
-  double denom = 1 / ((x2 - x0) * (y1 - y0) - (x1 - x0) * (y2 - y0));
-
   if (fabs(denom) < 1e-12) {
     return (Vec3){-1.0, 1.0, 1.0};
   }
@@ -23,8 +22,12 @@ inline Vec3 trinterpolate(Triangle tri, Vec3 bary) {
                 tri.v0.y * bary.x + tri.v1.y * bary.y + tri.v2.y * bary.z,
                 tri.v0.z * bary.x + tri.v1.z * bary.y + tri.v2.z * bary.z};
 }
-double fmin3(double x, double y, double z) { return fmin(x, fmin(y, z)); }
-double fmax3(double x, double y, double z) { return fmax(x, fmax(y, z)); }
-double clamp(double a, double lo, double hi) {
+inline double fmin3(double x, double y, double z) {
+  return fmin(x, fmin(y, z));
+}
+inline double fmax3(double x, double y, double z) {
+  return fmax(x, fmax(y, z));
+}
+inline double clamp(double a, double lo, double hi) {
   return (a > hi) ? hi : ((a < lo) ? lo : a);
 }

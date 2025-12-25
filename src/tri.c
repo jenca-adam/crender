@@ -12,6 +12,7 @@ Triangle Triangle_transform3(Triangle tri, Matrix transform) {
 }
 Triangle Triangle_create(Vec3 v0, Vec3 v1, Vec3 v2) {
   Triangle triangle;
+
   triangle.v0 = v0;
   triangle.v1 = v1;
   triangle.v2 = v2;

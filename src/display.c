@@ -51,7 +51,7 @@ void cleanupDisplay() {
     SDL_DestroyWindow(display->window);
   SDL_DestroyTexture(display->fbuf);
   SDL_Quit();
-
+  free(display);
   display = NULL;
 }
 void clearDisplay(Vec3 color) {

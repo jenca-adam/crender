@@ -191,6 +191,7 @@ double Matrix_determinant(Matrix matrix) {
   for (int j = 0; j < n; j++) {
     Matrix minor = Matrix_get_minor(matrix, 0, j);
     double cofactor = matrix.m[0][j] * Matrix_determinant(minor);
+    Matrix_dealloc(minor);
     if (j % 2 != 0) {
       cofactor = -cofactor;
     }
@@ -211,6 +212,7 @@ Matrix Matrix_adjugate(Matrix matrix) {
     for (int j = 0; j < n; j++) {
       Matrix minor = Matrix_get_minor(matrix, i, j);
       double cofactor = Matrix_determinant(minor);
+      Matrix_dealloc(minor);
       if ((i + j) % 2 != 0) {
         cofactor = -cofactor;
       }
@@ -220,12 +222,105 @@ Matrix Matrix_adjugate(Matrix matrix) {
   return adjugate;
 }
 
+Matrix Matrix_inverse4(Matrix matrix) {
+  Matrix inv = Matrix_empty(4, 4);
+  double **m = matrix.m;
+  double det = Matrix_determinant(matrix);
+  if (det == 0) {
+    return inv;
+  }
+
+  double inv_det = 1.0 / det;
+  inv.m[0][0] = (m[1][1] * (m[2][2] * m[3][3] - m[2][3] * m[3][2]) -
+                 m[1][2] * (m[2][1] * m[3][3] - m[2][3] * m[3][1]) +
+                 m[1][3] * (m[2][1] * m[3][2] - m[2][2] * m[3][1])) *
+                inv_det;
+
+  inv.m[0][1] = -(m[0][1] * (m[2][2] * m[3][3] - m[2][3] * m[3][2]) -
+                  m[0][2] * (m[2][1] * m[3][3] - m[2][3] * m[3][1]) +
+                  m[0][3] * (m[2][1] * m[3][2] - m[2][2] * m[3][1])) *
+                inv_det;
+
+  inv.m[0][2] = (m[0][1] * (m[1][2] * m[3][3] - m[1][3] * m[3][2]) -
+                 m[0][2] * (m[1][1] * m[3][3] - m[1][3] * m[3][1]) +
+                 m[0][3] * (m[1][1] * m[3][2] - m[1][2] * m[3][1])) *
+                inv_det;
+
+  inv.m[0][3] = -(m[0][1] * (m[1][2] * m[2][3] - m[1][3] * m[2][2]) -
+                  m[0][2] * (m[1][1] * m[2][3] - m[1][3] * m[2][1]) +
+                  m[0][3] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])) *
+                inv_det;
+
+  inv.m[1][0] = -(m[1][0] * (m[2][2] * m[3][3] - m[2][3] * m[3][2]) -
+                  m[1][2] * (m[2][0] * m[3][3] - m[2][3] * m[3][0]) +
+                  m[1][3] * (m[2][0] * m[3][2] - m[2][2] * m[3][0])) *
+                inv_det;
+
+  inv.m[1][1] = (m[0][0] * (m[2][2] * m[3][3] - m[2][3] * m[3][2]) -
+                 m[0][2] * (m[2][0] * m[3][3] - m[2][3] * m[3][0]) +
+                 m[0][3] * (m[2][0] * m[3][2] - m[2][2] * m[3][0])) *
+                inv_det;
+
+  inv.m[1][2] = -(m[0][0] * (m[1][2] * m[3][3] - m[1][3] * m[3][2]) -
+                  m[0][2] * (m[1][0] * m[3][3] - m[1][3] * m[3][0]) +
+                  m[0][3] * (m[1][0] * m[3][2] - m[1][2] * m[3][0])) *
+                inv_det;
+
+  inv.m[1][3] = (m[0][0] * (m[1][2] * m[2][3] - m[1][3] * m[2][2]) -
+                 m[0][2] * (m[1][0] * m[2][3] - m[1][3] * m[2][0]) +
+                 m[0][3] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])) *
+                inv_det;
+
+  inv.m[2][0] = (m[1][0] * (m[2][1] * m[3][3] - m[2][3] * m[3][1]) -
+                 m[1][1] * (m[2][0] * m[3][3] - m[2][3] * m[3][0]) +
+                 m[1][3] * (m[2][0] * m[3][1] - m[2][1] * m[3][0])) *
+                inv_det;
+
+  inv.m[2][1] = -(m[0][0] * (m[2][1] * m[3][3] - m[2][3] * m[3][1]) -
+                  m[0][1] * (m[2][0] * m[3][3] - m[2][3] * m[3][0]) +
+                  m[0][3] * (m[2][0] * m[3][1] - m[2][1] * m[3][0])) *
+                inv_det;
+
+  inv.m[2][2] = (m[0][0] * (m[1][1] * m[3][3] - m[1][3] * m[3][1]) -
+                 m[0][1] * (m[1][0] * m[3][3] - m[1][3] * m[3][0]) +
+                 m[0][3] * (m[1][0] * m[3][1] - m[1][1] * m[3][0])) *
+                inv_det;
+
+  inv.m[2][3] = -(m[0][0] * (m[1][1] * m[2][3] - m[1][3] * m[2][1]) -
+                  m[0][1] * (m[1][0] * m[2][3] - m[1][3] * m[2][0]) +
+                  m[0][3] * (m[1][0] * m[2][1] - m[1][1] * m[2][0])) *
+                inv_det;
+
+  inv.m[3][0] = -(m[1][0] * (m[2][1] * m[3][2] - m[2][2] * m[3][1]) -
+                  m[1][1] * (m[2][0] * m[3][2] - m[2][2] * m[3][0]) +
+                  m[1][2] * (m[2][0] * m[3][1] - m[2][1] * m[3][0])) *
+                inv_det;
+
+  inv.m[3][1] = (m[0][0] * (m[2][1] * m[3][2] - m[2][2] * m[3][1]) -
+                 m[0][1] * (m[2][0] * m[3][2] - m[2][2] * m[3][0]) +
+                 m[0][2] * (m[2][0] * m[3][1] - m[2][1] * m[3][0])) *
+                inv_det;
+
+  inv.m[3][2] = -(m[0][0] * (m[1][1] * m[3][2] - m[1][2] * m[3][1]) -
+                  m[0][1] * (m[1][0] * m[3][2] - m[1][2] * m[3][0]) +
+                  m[0][2] * (m[1][0] * m[3][1] - m[1][1] * m[3][0])) *
+                inv_det;
+
+  inv.m[3][3] = (m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) -
+                 m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) +
+                 m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0])) *
+                inv_det;
+  return inv;
+}
 Matrix Matrix_inverse(Matrix matrix) {
   int n = matrix.rows;
+
   if (n != matrix.cols) {
     return Matrix_empty(0, 0); // Return an empty matrix
   }
-
+  if (n == 4) {
+    return Matrix_inverse4(matrix);
+  }
   double det = Matrix_determinant(matrix);
   if (fabs(det) < 1e-9) {
     return Matrix_empty(0, 0); // Return an empty matrix
@@ -233,7 +328,7 @@ Matrix Matrix_inverse(Matrix matrix) {
 
   Matrix adjugate = Matrix_adjugate(matrix);
   Matrix inverse = Matrix_empty(n, n);
-
+  Matrix_dealloc(adjugate);
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < n; j++) {
       inverse.m[i][j] = adjugate.m[i][j] / det;

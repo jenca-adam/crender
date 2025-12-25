@@ -8,9 +8,9 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#define WIDTH 1200
-#define HEIGHT 1200
-#define RW 1200
+#define WIDTH 600
+#define HEIGHT 600
+#define RW 1500
 #define RH 1200
 #define DEPTH 1024
 #define CAM_Z 3
@@ -27,7 +27,8 @@ int main() {
   Matrix viewport = Matrix_viewport(width / 8., height / 8., width * 3 / 4.,
                                     height * 3 / 4., DEPTH);
   Matrix projection_x_viewport = Matrix_matmul(viewport, projection);
-
+  Matrix_dealloc(projection);
+  Matrix_dealloc(viewport);
   Texture *texture = Texture_create(WIDTH, HEIGHT, bg);
   Texture *obj_texture = Texture_readPPM("obj_texture.ppm");
   Texture *normal_map = Texture_readPPM("normal.ppm");
@@ -106,5 +107,14 @@ int main() {
     fflush(stdout);
     nframes++;
   }
+  cleanupDisplay();
+  Texture_dealloc(texture);
+  Texture_dealloc(obj_texture);
+  Texture_dealloc(normal_map);
+  Texture_dealloc(specular_map);
+  Object_dealloc(object);
+  Matrix_dealloc(projection_x_viewport);
+  free(zbuffer);
+  free(framebuffer);
   return 0;
 }
