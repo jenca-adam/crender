@@ -5,7 +5,6 @@
 #include "obj.h"
 #include <errno.h>
 #include <math.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -201,10 +200,11 @@ Vec3 Texture_getuv(Texture *texture, Vec3 uv) {
       ->m[(int)fabs(texture->height - clamp(uv.y, 0, 1) * texture->height)]
          [(int)fabs(clamp(uv.x, 0, 1) * texture->width)];
 }
-void Texture_draw_face(Texture *texture, Face *face, Texture *diffuse,
-                       Texture *normal_map, Texture *specular_map,
-                       double *zbuffer, Vec3 light_dir, Matrix transform,
-                       Matrix world_transform, Matrix inverse_transform) {
+void Texture_draw_face(LinearTexture texture, int width, int height, Face *face,
+                       Texture *diffuse, Texture *normal_map,
+                       Texture *specular_map, double *zbuffer, Vec3 light_dir,
+                       Matrix transform, Matrix world_transform,
+                       Matrix inverse_transform) {
   Vec3 l = Vec3_transform(light_dir, inverse_transform);
   Vec3 ldir = Vec3_normalized(l);
   Triangle world_tri = Face_gettri(face, VERTEX);
@@ -227,14 +227,8 @@ void Texture_draw_face(Texture *texture, Face *face, Texture *diffuse,
   int maxy = fmax3(tri.v0.y, tri.v1.y, tri.v2.y);
 
   Vec3 b;
-  double tw, th;
-  if (texture) {
-    tw = texture->width;
-    th = texture->height;
-  } else {
-    tw = display->render_width;
-    th = display->render_height;
-  }
+  double tw = width;
+  double th = height;
 
   for (int x = minx; x <= maxx; x++) {
     if (x >= tw) {
@@ -285,7 +279,8 @@ void Texture_draw_face(Texture *texture, Face *face, Texture *diffuse,
         spec = pow(fmax(-r_normalized.z, 0.0), specpow);
         intensity = d + spec * .6;
         if (texture) {
-          texture->m[(int)th - y - 1][x] = Vec3_phong(color, intensity, 0, 255);
+          texture[(int)(th * (th - y - 1) + x)] =
+              Vec3_pack_color(Vec3_phong(color, intensity, 0, 255));
         } else {
           setScreenPixel(th - y - 1, x, Vec3_phong(color, intensity, 0, 255));
         }
@@ -300,4 +295,14 @@ void Texture_dealloc(Texture *texture) {
   }
   free(texture->m);
   free(texture);
+}
+LinearTexture Texture_to_linear(Texture *texture) {
+  LinearTexture t = malloc(texture->width * texture->height * sizeof(*t));
+  for (int i = 0; i < texture->height; i++) {
+    for (int j = 0; j < texture->width; j++) {
+      t[(int)(texture->width * (texture->height - i - 1) + j)] =
+          Vec3_pack_color(texture->m[i][j]);
+    }
+  }
+  return t;
 }

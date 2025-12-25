@@ -13,11 +13,12 @@ typedef struct Display{
 	int block_height;
 	SDL_Window *window;
 	SDL_Renderer *renderer;
+        SDL_Texture *fbuf;
 } Display;
 int initDisplay(int width, int height, int render_width, int render_height, const char *title);
 void cleanupDisplay();
 void setScreenPixel(int i, int j, Vec3 color);
-void updateDisplay();
+void updateDisplay(LinearTexture pixels);
 void clearDisplay(Vec3 color);
 int renderTexture(Texture *texture);
 extern Display *display;

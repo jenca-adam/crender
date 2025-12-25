@@ -34,6 +34,9 @@ int initDisplay(int width, int height, int render_width, int render_height,
   display->block_height = height / render_height;
   display->window = window;
   display->renderer = renderer;
+  display->fbuf = SDL_CreateTexture(
+      renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING,
+      display->render_width, display->render_height);
   return 1;
 }
 
@@ -46,7 +49,9 @@ void cleanupDisplay() {
     SDL_DestroyRenderer(display->renderer);
   if (display->window)
     SDL_DestroyWindow(display->window);
+  SDL_DestroyTexture(display->fbuf);
   SDL_Quit();
+
   display = NULL;
 }
 void clearDisplay(Vec3 color) {
@@ -55,7 +60,12 @@ void clearDisplay(Vec3 color) {
   SDL_RenderClear(display->renderer);
 }
 
-void updateDisplay() { SDL_RenderPresent(display->renderer); }
+void updateDisplay(LinearTexture pixels) {
+  SDL_UpdateTexture(display->fbuf, NULL, pixels,
+                    display->render_width * sizeof(uint32_t));
+  SDL_RenderCopy(display->renderer, display->fbuf, NULL, NULL);
+  SDL_RenderPresent(display->renderer);
+}
 
 void setScreenPixel(int i, int j, Vec3 color) {
   // printf("D: %d %d (%f %f %f)\n", i, j, color.x, color.y, color.z);
@@ -69,11 +79,8 @@ int renderTexture(Texture *texture) {
     fprintf(stderr, "renderTexture: display not initialised\n");
     return 0;
   }
-  for (int i = 0; i < texture->height; i++) {
-    for (int j = 0; j < texture->width; j++) {
-      setScreenPixel(i, j, texture->m[i][j]);
-    }
-  }
-  updateDisplay();
+  LinearTexture t = Texture_to_linear(texture);
+  updateDisplay(t);
+  free(t);
   return 1;
 }

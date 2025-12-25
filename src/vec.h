@@ -1,5 +1,6 @@
 #ifndef _VEC_H
 #define _VEC_H
+#include<stdint.h>
 typedef struct Vec2{
 	double x;
 	double y;
@@ -45,4 +46,5 @@ Vec3 Vec3_transform(Vec3 v, Matrix mat);
 Vec3 Vec3_transform3(Vec3 v, Matrix mat);
 void Vec3_set_item(Vec3 v, int i, double a);
 double Vec3_get_item(Vec3 v, int i);
+uint32_t Vec3_pack_color(Vec3 vec);
 #endif

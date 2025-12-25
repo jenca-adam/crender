@@ -1,74 +1,64 @@
 #include "common.h"
 #include "core.h"
 #include <math.h>
+#include <stdint.h>
 #include <stdlib.h>
+inline Vec2 Vec2_create(double x, double y) { return (Vec2){x, y}; }
 
-Vec2 Vec2_create(double x, double y) {
-  Vec2 vec2;
-  vec2.x = x;
-  vec2.y = y;
-  return vec2;
+inline Vec3 Vec3_create(double x, double y, double z) {
+  return (Vec3){x, y, z};
 }
 
-Vec3 Vec3_create(double x, double y, double z) {
-  Vec3 vec3;
-  vec3.x = x;
-  vec3.y = y;
-  vec3.z = z;
-  return vec3;
-}
-
-Vec3 Vec3_cross(Vec3 v1, Vec3 v2) {
+inline Vec3 Vec3_cross(Vec3 v1, Vec3 v2) {
   return Vec3_create(v1.y * v2.z - v1.z * v2.y, v1.z * v2.x - v1.x * v2.z,
                      v1.x * v2.y - v1.y * v2.x);
 }
 
-double Vec3_dot(Vec3 v1, Vec3 v2) {
+inline double Vec3_dot(Vec3 v1, Vec3 v2) {
   return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
 }
 
-Vec3 Vec3_add(Vec3 v1, Vec3 v2) {
+inline Vec3 Vec3_add(Vec3 v1, Vec3 v2) {
   return Vec3_create(v1.x + v2.x, v1.y + v2.y, v1.z + v2.z);
 }
 
-Vec3 Vec3_neg(Vec3 v1) { return Vec3_create(-v1.x, -v1.y, -v1.z); }
+inline Vec3 Vec3_neg(Vec3 v1) { return Vec3_create(-v1.x, -v1.y, -v1.z); }
 
-Vec3 Vec3_sub(Vec3 v1, Vec3 v2) {
+inline Vec3 Vec3_sub(Vec3 v1, Vec3 v2) {
   return Vec3_create(v1.x - v2.x, v1.y - v2.y, v1.z - v2.z);
 }
 
-Vec3 Vec3_mul(Vec3 v1, double a) {
+inline Vec3 Vec3_mul(Vec3 v1, double a) {
   return Vec3_create(v1.x * a, v1.y * a, v1.z * a);
 }
 
-Vec3 Vec3_phong(Vec3 v1, double a, double lo, double hi) {
+inline Vec3 Vec3_phong(Vec3 v1, double a, double lo, double hi) {
   return Vec3_create(clamp(v1.x * a + AMBIENT, lo, hi),
                      clamp(v1.y * a + AMBIENT, lo, hi),
                      clamp(v1.z * a + AMBIENT, lo, hi));
 }
 
-Vec3 Vec3_div(Vec3 v1, double a) {
+inline Vec3 Vec3_div(Vec3 v1, double a) {
   return Vec3_create(v1.x / a, v1.y / a, v1.z / a);
 }
 
-double Vec3_length(Vec3 v) {
-  return sqrt(pow(v.x, 2) + pow(v.y, 2) + pow(v.z, 2));
+inline double Vec3_length(Vec3 v) {
+  return sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
 }
 
-Vec3 Vec3_normalized(Vec3 v) {
-  double length = Vec3_length(v);
-  return Vec3_div(v, length);
-}
+inline Vec3 Vec3_normalized(Vec3 v) { return Vec3_div(v, Vec3_length(v)); }
 
-Vec3 Vec3_from_matrix(Matrix mat) {
+inline Vec3 Vec3_from_matrix(Matrix mat) {
   return Vec3_create(mat.m[0][0] / mat.m[3][0], mat.m[1][0] / mat.m[3][0],
                      mat.m[2][0] / mat.m[3][0]);
 }
 
-Vec3 Vec3_from_matrix3(Matrix mat) {
+inline Vec3 Vec3_from_matrix3(Matrix mat) {
   return Vec3_create(mat.m[0][0], mat.m[1][0], mat.m[2][0]);
 }
-
+inline uint32_t Vec3_pack_color(Vec3 vec) {
+  return 0xff | (int)vec.z << 8 | (int)vec.y << 16 | (int)vec.x << 24;
+}
 Vec3 Vec3_normal_from_color(Vec3 color) {
   Vec3 n_0to1 = Vec3_div(color, 127.5);
   Vec3 n_minus1to1 = Vec3_create(-n_0to1.x + 1, -n_0to1.y + 1, -n_0to1.z + 1);
@@ -253,13 +243,16 @@ Matrix Matrix_inverse(Matrix matrix) {
   return inverse;
 }
 
-Vec3 Vec3_transform(Vec3 v, Matrix mat) {
-  Matrix vmat = Matrix_from_vector(v);
-  Matrix result = Matrix_matmul(mat, vmat);
-  Vec3 out = Vec3_from_matrix(result);
-  Matrix_dealloc(vmat);
-  Matrix_dealloc(result);
-  return out;
+Vec3 Vec3_transform(Vec3 v, Matrix m) {
+  double x = v.x, y = v.y, z = v.z;
+  double w = 1.0;
+
+  double nx = m.m[0][0] * x + m.m[0][1] * y + m.m[0][2] * z + m.m[0][3] * w;
+  double ny = m.m[1][0] * x + m.m[1][1] * y + m.m[1][2] * z + m.m[1][3] * w;
+  double nz = m.m[2][0] * x + m.m[2][1] * y + m.m[2][2] * z + m.m[2][3] * w;
+  double nw = m.m[3][0] * x + m.m[3][1] * y + m.m[3][2] * z + m.m[3][3] * w;
+
+  return Vec3_create(nx / nw, ny / nw, nz / nw);
 }
 
 Vec3 Vec3_transform3(Vec3 v, Matrix mat) {
