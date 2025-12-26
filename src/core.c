@@ -1,33 +1,14 @@
 #include "core.h"
-#include "tri.h"
-#include <math.h>
-#include <stdlib.h>
-inline Vec3 barycentric(Vec3 v0, Vec3 v1, Vec3 v2, double px, double py,
-                        double denom) {
-  double x0 = v0.x, y0 = v0.y;
-  double x1 = v1.x, y1 = v1.y;
-  double x2 = v2.x, y2 = v2.y;
-  if (fabs(denom) < 1e-12) {
-    return (Vec3){-1.0, 1.0, 1.0};
-  }
+double apow(double x, uint8_t n) {
+  double p[8];
+  p[0] = x;
+  for (int i = 1; i < 8; i++)
+    p[i] = p[i - 1] * p[i - 1];
 
-  double w1 = ((x2 - x0) * (py - y0) - (y2 - y0) * (px - x0)) * denom;
+  double r = 1.0;
+  for (int i = 0; i < 8; i++)
+    if (n & (1 << i))
+      r *= p[i];
 
-  double w2 = ((y1 - y0) * (px - x0) - (x1 - x0) * (py - y0)) * denom;
-
-  return (Vec3){1.0 - w1 - w2, w1, w2};
-}
-inline Vec3 trinterpolate(Triangle tri, Vec3 bary) {
-  return (Vec3){tri.v0.x * bary.x + tri.v1.x * bary.y + tri.v2.x * bary.z,
-                tri.v0.y * bary.x + tri.v1.y * bary.y + tri.v2.y * bary.z,
-                tri.v0.z * bary.x + tri.v1.z * bary.y + tri.v2.z * bary.z};
-}
-inline double fmin3(double x, double y, double z) {
-  return fmin(x, fmin(y, z));
-}
-inline double fmax3(double x, double y, double z) {
-  return fmax(x, fmax(y, z));
-}
-inline double clamp(double a, double lo, double hi) {
-  return (a > hi) ? hi : ((a < lo) ? lo : a);
+  return r;
 }

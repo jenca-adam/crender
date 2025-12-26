@@ -197,60 +197,69 @@ Texture *Texture_read(char *fn) {
 
 inline Vec3 Texture_getuv(Texture *texture, Vec3 uv) {
   return texture
-      ->m[(int)fabs(texture->height - clamp(uv.y, 0, 1) * texture->height)]
+      ->m[(int)fabs(texture->height - (clamp(uv.y, 0, 1) * texture->height))]
          [(int)fabs(clamp(uv.x, 0, 1) * texture->width)];
 }
 void Texture_draw_face(LinearTexture texture, int width, int height, Face *face,
                        Texture *diffuse, Texture *normal_map,
                        Texture *specular_map, double *zbuffer, Vec3 light_dir,
                        Matrix transform, Matrix world_transform,
-                       Matrix inverse_transform) {
+                       Matrix inverse_transform, double near_plane,
+                       shading_mode mode) {
   Vec3 l = Vec3_transform(light_dir, inverse_transform);
   Vec3 ldir = Vec3_normalized(l);
-  Triangle world_tri = Face_gettri(face, VERTEX);
-  Vec3 carg1 = Vec3_sub(world_tri.v2, world_tri.v0);
-  Vec3 carg2 = Vec3_sub(world_tri.v1, world_tri.v0);
-  Vec3 crossed = Vec3_cross(carg1, carg2);
-  Vec3 n = Vec3_normalized(crossed);
+  Triangle raw_tri = Face_gettri(face, VERTEX);
+  Triangle world_tri = Triangle_transform(raw_tri, world_transform);
+  if (world_tri.v0.z > near_plane || world_tri.v1.z > near_plane ||
+      world_tri.v2.z > near_plane) {
+    return;
+  }
+  Vec3 n = Vec3_normalized(Vec3_cross(Vec3_sub(raw_tri.v2, raw_tri.v0),
+                                      Vec3_sub(raw_tri.v1, raw_tri.v0)));
   double intensity = Vec3_dot(n, ldir);
   if (intensity < 0) {
     return;
   }
-  Vec3 c = Vec3_create(255, 255, 255);
   Triangle uvs = Face_gettri(face, UV);
   Triangle vns = Face_gettri(face, NORMAL);
-  Triangle tri = Triangle_transform(world_tri, transform);
+  Triangle tri = Triangle_transform(raw_tri, transform);
   double x0 = tri.v0.x, y0 = tri.v0.y, z0 = tri.v0.z;
   double x1 = tri.v1.x, y1 = tri.v1.y, z1 = tri.v1.z;
   double x2 = tri.v2.x, y2 = tri.v2.y, z2 = tri.v2.z;
-
   // Triangle_bary_precomp(&tri);
   double bary_denom = 1 / ((x2 - x0) * (y1 - y0) - (x1 - x0) * (y2 - y0));
-  int minx = fmin3(x0, x1, x2);
-  int maxx = fmax3(x0, x1, x2);
-  int miny = fmin3(y0, y1, y2);
-  int maxy = fmax3(y0, y1, y2);
+  int minx = fmax(0, fmin3(x0, x1, x2));
+  int maxx = fmin(width, fmax3(x0, x1, x2));
+  int miny = fmax(0, fmin3(y0, y1, y2));
+  int maxy = fmin(height, fmax3(y0, y1, y2));
 
-  Vec3 b;
   double tw = width;
   double th = height;
-
+  Vec3 bbase = barycentric(tri.v0, tri.v1, tri.v2, minx, miny, bary_denom);
+  Vec3 deltax = Vec3_sub(
+      barycentric(tri.v0, tri.v1, tri.v2, minx + 1, miny, bary_denom), bbase);
+  Vec3 deltay = Vec3_sub(
+      barycentric(tri.v0, tri.v1, tri.v2, minx, miny + 1, bary_denom), bbase);
   for (int x = minx; x <= maxx; x++) {
     if (x >= tw) {
-      continue;
+      break;
     }
     if (x < 0) {
+      Vec3_ADD_INPLACE(bbase, deltax);
       continue;
     }
+    Vec3 b = bbase;
+    int calc_bary = 0;
     for (int y = miny; y <= maxy; y++) {
       if (y >= th) {
-        continue;
+        break;
       }
       if (y < 0) {
+        Vec3_ADD_INPLACE(b, deltay);
         continue;
       }
-      b = barycentric(tri.v0, tri.v1, tri.v2, x, y, bary_denom);
       if (b.x < -EPSILON || b.y < -EPSILON || b.z < -EPSILON) {
+        Vec3_ADD_INPLACE(b, deltay);
         continue;
       }
       double z = z0 * b.x + z1 * b.y + z2 * b.z;
@@ -260,35 +269,43 @@ void Texture_draw_face(LinearTexture texture, int width, int height, Face *face,
         Vec3 normal;
         zbuffer[zbuffix] = z;
         Vec3 uv = trinterpolate(uvs, b);
-
-        Vec3 color = Texture_getuv(diffuse, uv);
+        int u = clamp((int)(uv.x * diffuse->width), 0, diffuse->width - 1);
+        int v =
+            clamp((int)((1 - uv.y) * diffuse->height), 0, diffuse->height - 1);
+        Vec3 color = diffuse->m[v][u];
         if (!normal_map) {
           normal = Vec3_neg(trinterpolate(vns, b));
         } else {
-          normal = (Vec3_normal_from_color(Texture_getuv(normal_map, uv)));
+          normal = (Vec3_normal_from_color(normal_map->m[v][u]));
         }
-        if (!specular_map) {
-          specpow = 1;
-        } else {
-          specpow = Texture_getuv(specular_map, uv).x;
-        }
-        Vec3 normal_transformed = Vec3_transform(normal, inverse_transform);
+
         double d = Vec3_dot(normal, ldir);
+        if (mode == PHONG) {
+          if (!specular_map) {
+            specpow = 1;
+          } else {
+            specpow = specular_map->m[v][u].x;
+          }
 
-        Vec3 normal_times_d = Vec3_mul(normal, 2.0 * d);
+          /*Vec3 normal_times_d = Vec3_mul(normal, 2.0 * d);
 
-        Vec3 reflected = (Vec3_sub(normal_times_d, light_dir));
-        Vec3 r_normalized = Vec3_normalized(reflected);
-        spec = pow(fmax(-r_normalized.z, 0.0), specpow);
-        intensity = d + spec * .6;
-        if (texture) {
-          texture[(int)(th * (th - y - 1) + x)] =
-              Vec3_pack_color(Vec3_phong(color, intensity, 0, 255));
+          Vec3 reflected = (Vec3_sub(normal_times_d, light_dir));
+          Vec3 r_normalized = Vec3_normalized(reflected);
+          */
+          spec = apow(fmax(d, 0.0), specpow);
+          intensity = d + spec * .6;
+          if (texture) {
+            texture[(int)(th * (th - y - 1) + x)] =
+                Vec3_phong(color, intensity, 0, 255);
+          }
         } else {
-          setScreenPixel(th - y - 1, x, Vec3_phong(color, intensity, 0, 255));
+          texture[(int)(th * (th - y - 1) + x)] =
+              Vec3_pack_color(Vec3_mul(color, fmax(d, 0.0)));
         }
       }
+      Vec3_ADD_INPLACE(b, deltay);
     }
+    Vec3_ADD_INPLACE(bbase, deltax);
   }
 }
 

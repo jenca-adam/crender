@@ -1,0 +1,5 @@
+*.out.*
+vgcore*
+gmon.out
+*.o
+renderer

@@ -10,11 +10,17 @@
 #include <stdlib.h>
 #define WIDTH 600
 #define HEIGHT 600
-#define RW 1500
+#define RW 1200
 #define RH 1200
 #define DEPTH 1024
 #define CAM_Z 3
 #define ROTATE 1
+#define MULTITHREAD 14
+#define WET_RUN 1
+#define TX 0
+#define TY 0
+#define TZ -2
+#define NEAR_PLANE (CAM_Z)
 int main() {
   const int width = WIDTH;
   const int height = HEIGHT;
@@ -46,26 +52,19 @@ int main() {
   double *zbuffer = malloc(width * height * sizeof(double));
   LinearTexture framebuffer = malloc(width * height * sizeof(uint32_t));
   for (int i = 0; i < width * height; i++) {
-    zbuffer[i] = -INT_MAX;
+    zbuffer[i] = -DBL_MAX;
   }
-#if 0
-  printf("render start\n");
-#pragma omp parallel for
-  for (int fi = 0; fi < object->nf; fi++) {
-    Face *face = object->faces[fi];
 
-    Texture_draw_face(texture, face, obj_texture, normal_map, specular_map,
-                      zbuffer, light_dir, transform, inverse);
-  }
-  renderTexture(texture);
-  printf("render end\n");
-  Texture_writePPM(texture, "out2.ppm");
-#endif // 0
   SDL_Event event;
   Matrix rot, transform, inverse;
   int running = 1;
   int nframes = 0;
   float deg_rot = 0;
+  float rotate = 0;
+  int use_normal_map = 1;
+  shading_mode mode = PHONG;
+  Vec3 translate_vec = {0, 0, 0};
+  Vec3 tdelta = {0, 0, 0};
   Uint32 frame_time = SDL_GetTicks();
   while (running) {
     float dt = (SDL_GetTicks() - frame_time) / 1000.0;
@@ -75,35 +74,82 @@ int main() {
       if (event.type == SDL_QUIT) {
         running = 0;
         break;
+      } else if (event.type == SDL_KEYDOWN) {
+        switch (event.key.keysym.sym) {
+        case SDLK_LEFT:
+          rotate = -ROTATE;
+          break;
+        case SDLK_RIGHT:
+          rotate = ROTATE;
+          break;
+        case SDLK_UP:
+          tdelta.z = TZ * dt;
+          break;
+        case SDLK_DOWN:
+          tdelta.z = -TZ * dt;
+          break;
+        case 'm':
+          mode = mode == PHONG ? GOURAUD : PHONG;
+          break;
+        case 'n':
+          use_normal_map = !use_normal_map;
+          break;
+        default:
+          break;
+        }
+      } else if (event.type == SDL_KEYUP) {
+        switch (event.key.keysym.sym) {
+        case SDLK_LEFT:
+        case SDLK_RIGHT:
+          rotate = 0;
+          break;
+        case SDLK_UP:
+        case SDLK_DOWN:
+          tdelta.z = 0;
+          break;
+        default:
+          break;
+        }
       }
     }
 
-    deg_rot += dt * ROTATE;
+    deg_rot += dt * rotate;
+    Vec3_ADD_INPLACE(translate_vec, tdelta);
+    Matrix trans = Matrix_translation(translate_vec);
     Matrix rot = Matrix_roty(deg_rot);
     Matrix inverse = Matrix_inverse(rot);
-    Matrix transform = Matrix_matmul(projection_x_viewport, rot);
+    Matrix tot = Matrix_matmul(trans, rot);
+    Matrix transform = Matrix_matmul(projection_x_viewport, tot);
 
     clearDisplay(bg);
-    memset(zbuffer, '\x00', width * height * sizeof(double));
+    for (int i = 0; i < width * height; i++) {
+      zbuffer[i] = -DBL_MAX;
+    }
     memset(framebuffer, '\x00', width * height * sizeof(uint32_t));
+#if MULTITHREAD
+#pragma omp parallel for num_threads(MULTITHREAD)
+#endif
     for (int fi = 0; fi < object->nf; fi++) {
       Face *face = object->faces[fi];
 
       Texture_draw_face(framebuffer, width, height, face, obj_texture,
-                        normal_map, specular_map, zbuffer, light_dir, transform,
-                        rot, inverse);
+                        use_normal_map ? normal_map : NULL, specular_map,
+                        zbuffer, light_dir, transform, tot, inverse, NEAR_PLANE,
+                        mode);
     }
 
     Matrix_dealloc(rot);
+    Matrix_dealloc(tot);
     Matrix_dealloc(inverse);
     Matrix_dealloc(transform);
-
+    Matrix_dealloc(trans);
+#if WET_RUN
     updateDisplay(framebuffer);
-
+#endif
     // --- FPS counter update ---
     Uint32 fps_current_time = SDL_GetTicks();
     float fps = 1.0 / ((fps_current_time - frame_time) / 1000.0);
-    printf("FPS:%f\r", fps);
+    printf("FPS:%f model_z: %lf\r", fps, translate_vec.z);
     fflush(stdout);
     nframes++;
   }

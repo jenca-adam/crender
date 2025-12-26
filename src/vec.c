@@ -1,69 +1,9 @@
+#include "vec.h"
 #include "common.h"
 #include "core.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
-inline Vec2 Vec2_create(double x, double y) { return (Vec2){x, y}; }
-
-inline Vec3 Vec3_create(double x, double y, double z) {
-  return (Vec3){x, y, z};
-}
-
-inline Vec3 Vec3_cross(Vec3 v1, Vec3 v2) {
-  return Vec3_create(v1.y * v2.z - v1.z * v2.y, v1.z * v2.x - v1.x * v2.z,
-                     v1.x * v2.y - v1.y * v2.x);
-}
-
-inline double Vec3_dot(Vec3 v1, Vec3 v2) {
-  return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
-}
-
-inline Vec3 Vec3_add(Vec3 v1, Vec3 v2) {
-  return Vec3_create(v1.x + v2.x, v1.y + v2.y, v1.z + v2.z);
-}
-
-inline Vec3 Vec3_neg(Vec3 v1) { return Vec3_create(-v1.x, -v1.y, -v1.z); }
-
-inline Vec3 Vec3_sub(Vec3 v1, Vec3 v2) {
-  return Vec3_create(v1.x - v2.x, v1.y - v2.y, v1.z - v2.z);
-}
-
-inline Vec3 Vec3_mul(Vec3 v1, double a) {
-  return Vec3_create(v1.x * a, v1.y * a, v1.z * a);
-}
-
-inline Vec3 Vec3_phong(Vec3 v1, double a, double lo, double hi) {
-  return Vec3_create(clamp(v1.x * a + AMBIENT, lo, hi),
-                     clamp(v1.y * a + AMBIENT, lo, hi),
-                     clamp(v1.z * a + AMBIENT, lo, hi));
-}
-
-inline Vec3 Vec3_div(Vec3 v1, double a) {
-  return Vec3_create(v1.x / a, v1.y / a, v1.z / a);
-}
-
-inline double Vec3_length(Vec3 v) {
-  return sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
-}
-
-inline Vec3 Vec3_normalized(Vec3 v) { return Vec3_div(v, Vec3_length(v)); }
-
-inline Vec3 Vec3_from_matrix(Matrix mat) {
-  return Vec3_create(mat.m[0][0] / mat.m[3][0], mat.m[1][0] / mat.m[3][0],
-                     mat.m[2][0] / mat.m[3][0]);
-}
-
-inline Vec3 Vec3_from_matrix3(Matrix mat) {
-  return Vec3_create(mat.m[0][0], mat.m[1][0], mat.m[2][0]);
-}
-inline uint32_t Vec3_pack_color(Vec3 vec) {
-  return 0xff | (int)vec.z << 8 | (int)vec.y << 16 | (int)vec.x << 24;
-}
-Vec3 Vec3_normal_from_color(Vec3 color) {
-  Vec3 n_0to1 = Vec3_div(color, 127.5);
-  Vec3 n_minus1to1 = Vec3_create(-n_0to1.x + 1, -n_0to1.y + 1, -n_0to1.z + 1);
-  return n_minus1to1;
-}
 
 Vec3 Vec3_copy(Vec3 v) { return Vec3_create(v.x, v.y, v.z); }
 void Matrix_dealloc(Matrix matrix) {
@@ -124,7 +64,13 @@ Matrix Matrix_viewport(double x, double y, double w, double h, double d) {
   mat.m[1][1] = h / 2.0;
   return mat;
 }
-
+Matrix Matrix_translation(Vec3 v) {
+  Matrix mat = Matrix_identity(4);
+  mat.m[0][3] = v.x;
+  mat.m[1][3] = v.y;
+  mat.m[2][3] = v.z;
+  return mat;
+}
 Matrix Matrix_from_vector(Vec3 vec3) {
   Matrix mat = Matrix_empty(4, 1);
   mat.m[0][0] = vec3.x;
