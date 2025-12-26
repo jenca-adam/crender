@@ -200,9 +200,10 @@ inline Vec3 Texture_getuv(Texture *texture, Vec3 uv) {
       ->m[(int)fabs(texture->height - (clamp(uv.y, 0, 1) * texture->height))]
          [(int)fabs(clamp(uv.x, 0, 1) * texture->width)];
 }
-void Texture_draw_face(LinearTexture texture, int width, int height, Face *face,
-                       Texture *diffuse, Texture *normal_map,
-                       Texture *specular_map, double *zbuffer, Vec3 light_dir,
+void Texture_draw_face(LinearTexture texture, omp_lock_t texture_lock,
+                       int width, int height, Face *face, Texture *diffuse,
+                       Texture *normal_map, Texture *specular_map,
+                       double *zbuffer, omp_lock_t zbuffer_lock, Vec3 light_dir,
                        Matrix transform, Matrix world_transform,
                        Matrix inverse_transform, double near_plane,
                        shading_mode mode) {
@@ -264,10 +265,13 @@ void Texture_draw_face(LinearTexture texture, int width, int height, Face *face,
       }
       double z = z0 * b.x + z1 * b.y + z2 * b.z;
       int zbuffix = x + y * tw;
+
+      omp_set_lock(&zbuffer_lock);
       if (zbuffer[zbuffix] < z) {
         double spec, specpow;
         Vec3 normal;
         zbuffer[zbuffix] = z;
+        omp_unset_lock(&zbuffer_lock);
         Vec3 uv = trinterpolate(uvs, b);
         int u = clamp((int)(uv.x * diffuse->width), 0, diffuse->width - 1);
         int v =
@@ -295,13 +299,19 @@ void Texture_draw_face(LinearTexture texture, int width, int height, Face *face,
           spec = apow(fmax(d, 0.0), specpow);
           intensity = d + spec * .6;
           if (texture) {
+            omp_set_lock(&texture_lock);
             texture[(int)(th * (th - y - 1) + x)] =
                 Vec3_phong(color, intensity, 0, 255);
+            omp_unset_lock(&texture_lock);
           }
         } else {
+          omp_set_lock(&texture_lock);
           texture[(int)(th * (th - y - 1) + x)] =
               Vec3_pack_color(Vec3_mul(color, fmax(d, 0.0)));
+          omp_unset_lock(&texture_lock);
         }
+      } else {
+        omp_unset_lock(&zbuffer_lock);
       }
       Vec3_ADD_INPLACE(b, deltay);
     }

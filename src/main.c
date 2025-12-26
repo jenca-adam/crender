@@ -6,6 +6,7 @@
 #include "tri.h"
 #include <limits.h>
 #include <math.h>
+#include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #define WIDTH 600
@@ -21,6 +22,8 @@
 #define TY 0
 #define TZ -2
 #define NEAR_PLANE (CAM_Z)
+omp_lock_t zbuffer_lock, framebuffer_lock;
+
 int main() {
   const int width = WIDTH;
   const int height = HEIGHT;
@@ -55,6 +58,8 @@ int main() {
     zbuffer[i] = -DBL_MAX;
   }
 
+  omp_init_lock(&zbuffer_lock);
+  omp_init_lock(&framebuffer_lock);
   SDL_Event event;
   Matrix rot, transform, inverse;
   int running = 1;
@@ -132,10 +137,10 @@ int main() {
     for (int fi = 0; fi < object->nf; fi++) {
       Face *face = object->faces[fi];
 
-      Texture_draw_face(framebuffer, width, height, face, obj_texture,
-                        use_normal_map ? normal_map : NULL, specular_map,
-                        zbuffer, light_dir, transform, tot, inverse, NEAR_PLANE,
-                        mode);
+      Texture_draw_face(framebuffer, framebuffer_lock, width, height, face,
+                        obj_texture, use_normal_map ? normal_map : NULL,
+                        specular_map, zbuffer, zbuffer_lock, light_dir,
+                        transform, tot, inverse, NEAR_PLANE, mode);
     }
 
     Matrix_dealloc(rot);
