@@ -24,11 +24,15 @@
 #define NEAR_PLANE (CAM_Z)
 omp_lock_t zbuffer_lock, framebuffer_lock;
 
-int main() {
+int main(int argc, char *argv[]) {
   const int width = WIDTH;
   const int height = HEIGHT;
   const double cam_z = CAM_Z;
-
+  if (argc < 2) {
+    fprintf(stderr, "missing object directory (e.g. obj/head)\n");
+    return 1;
+  }
+  char *dirname = argv[argc - 1];
   Vec3 light_dir = Vec3_create(0, 0, -1);
   Vec3 bg = Vec3_create(0, 0, 0);
   Vec3 fg = Vec3_create(255, 255, 0);
@@ -39,15 +43,15 @@ int main() {
   Matrix_dealloc(projection);
   Matrix_dealloc(viewport);
   Texture *texture = Texture_create(WIDTH, HEIGHT, bg);
-  Texture *obj_texture = Texture_readPPM("obj_texture.ppm");
-  Texture *normal_map = Texture_readPPM("normal.ppm");
-  Texture *specular_map = Texture_readPPM("specular.ppm");
-  Object *object = Object_fromOBJ("obj.obj");
+  Texture *obj_texture = Texture_readPPM("obj_texture.ppm", dirname);
+  Texture *normal_map = Texture_readPPM("normal.ppm", dirname);
+  Texture *specular_map = Texture_readPPM("specular.ppm", dirname);
+  Object *object = Object_fromOBJ("obj.obj", dirname);
 
   if (!initDisplay(RW, RH, WIDTH, HEIGHT, "renderer")) {
     return 1;
   };
-  if (!object) {
+  if (!object || !texture || !obj_texture) {
     return 1;
   }
   printf("%d\n", object->nf);

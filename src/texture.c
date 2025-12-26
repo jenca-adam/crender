@@ -68,39 +68,52 @@ void Texture_writePPM(Texture *texture, char *fn) {
   }
   fclose(fp);
 }
-Texture *Texture_readPPM(char *fn) {
+Texture *Texture_readPPM(char *fn_raw, char *dirname) {
+  char *fn;
+  if (dirname) {
+    fn = malloc(strlen(fn_raw) + strlen(dirname) + 2);
+    snprintf(fn, strlen(fn_raw) + strlen(dirname) + 2, "%s/%s", dirname,
+             fn_raw);
+  } else {
+    fn = fn_raw;
+  }
+
   FILE *fp = fopen(fn, "rb");
   char mode[3];
   int width;
   int height;
   unsigned long lmaxn; // convert everything to 8-bit RGB anyway
   if (!fp) {
-    perror("Texture_readPPM: fopen() failed");
-    abort();
+    fprintf(stderr, "Texture_readPPM: fopen(%s) failed: %s\n", fn,
+            strerror(errno));
+    if (dirname)
+      free(fn);
+    return NULL;
   }
+  if (dirname)
+    free(fn);
   if (!fgets(mode, sizeof(mode), fp)) {
-
-    perror("Texture_readPPM: format error");
-    abort();
+    fprintf(stderr, "Texture_readPPM: format error: can't read mode\n");
+    return NULL;
   }
   if (strcmp(mode, "P6")) {
-    errno = ENOTSUP;
-    perror("Texture_readPPM: format error");
-    abort();
+    fprintf(stderr, "Texture_readPPM: format error: mode %s is not supported\n",
+            mode);
+    return NULL;
   }
   if (fscanf(fp, "\n%d %d\n%lu\n", &width, &height, &lmaxn) != 3) {
-    errno = EINVAL;
-    perror("Texture_readPPM: format error");
-    abort();
+    fprintf(stderr, "Texture_readPPM: format error: can't read header\n");
+    return NULL;
   }
   if (lmaxn != 255) {
-    errno = ENOTSUP;
-    perror("Texture_readPPM: format error");
-    abort();
+    fprintf(stderr,
+            "Texture_readPPM: format error: can only read 24-bit colors\n");
+    return NULL;
   }
   Texture *texture = Texture_alloc(width, height);
   if (!texture) {
-    abort();
+    perror("can't allocate");
+    return NULL;
   }
   for (int i = 0; i < height; i++) {
     for (int j = 0; j < width; j++) {
@@ -108,12 +121,14 @@ Texture *Texture_readPPM(char *fn) {
       fread(&rgb, 1, 3, fp);
 
       if (feof(fp) && (i < height - 1) && (j < width - 1)) {
-        perror("Texture_readPPM: format error");
-        abort();
+        fprintf(stderr, "Texture_readPPM: format error: EOF\n");
+        Texture_dealloc(texture);
+        return NULL;
       }
       texture->m[i][j] = Vec3_create(rgb[0], rgb[1], rgb[2]);
     }
   }
+
   return texture;
 }
 Texture *Texture_readPAM(char *fn) {
@@ -185,7 +200,7 @@ Texture *Texture_readPAM(char *fn) {
 }
 Texture *Texture_read(char *fn) {
   if (strcmp(fn + strlen(fn) - 4, ".ppm") == 0) {
-    return Texture_readPPM(fn);
+    return Texture_readPPM(fn, NULL);
   } else if (strcmp(fn + strlen(fn) - 4, ".pam") == 0) {
     return Texture_readPAM(fn);
   } else {
@@ -320,6 +335,8 @@ void Texture_draw_face(LinearTexture texture, omp_lock_t texture_lock,
 }
 
 void Texture_dealloc(Texture *texture) {
+  if (!texture)
+    return;
   for (int i = 0; i < texture->height; i++) {
     free(texture->m[i]);
   }

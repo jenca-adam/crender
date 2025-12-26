@@ -121,14 +121,27 @@ Face *read_face(FILE *fp, Object *obj) {
 
   return face;
 }
-Object *Object_fromOBJ(char *fn) {
+Object *Object_fromOBJ(char *fn_raw, char *dirname) {
 
+  char *fn;
+  if (dirname) {
+    fn = malloc(strlen(fn_raw) + strlen(dirname) + 2);
+    snprintf(fn, strlen(fn_raw) + strlen(dirname) + 2, "%s/%s", dirname,
+             fn_raw);
+  } else {
+    fn = fn_raw;
+  }
   FILE *fp = fopen(fn, "rb");
+
   if (!fp) {
-    perror("Object_fromOBJ: fopen() fail");
+    fprintf(stderr, "Object_fromOBJ: fopen(%s) failed: %s\n", fn,
+            strerror(errno));
+    if (dirname)
+      free(fn);
     return NULL;
   }
-
+  if (dirname)
+    free(fn);
   Object *object = Object_new();
   Vec3 arg;
   Face *farg;
