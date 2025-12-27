@@ -289,14 +289,12 @@ void Texture_draw_face(LinearTexture texture, int width, int height, Face *face,
         Vec3 normal;
         zbuffer[zbuffix] = z;
         Vec3 uv = trinterpolate(uvs, b);
-        int u = clamp((int)(uv.x * diffuse->width), 0, diffuse->width - 1);
-        int v =
-            clamp((int)((1 - uv.y) * diffuse->height), 0, diffuse->height - 1);
-        Vec3 color = diffuse->m[v][u];
+
+        Vec3 color = Texture_getuv(diffuse, uv);
         if (!normal_map) {
           normal = Vec3_neg(trinterpolate(vns, b));
         } else {
-          normal = (Vec3_normal_from_color(normal_map->m[v][u]));
+          normal = (Vec3_normal_from_color(Texture_getuv(normal_map, uv)));
         }
 
         double d = Vec3_dot(normal, ldir);
@@ -306,7 +304,7 @@ void Texture_draw_face(LinearTexture texture, int width, int height, Face *face,
           if (!specular_map) {
             specpow = 1;
           } else {
-            specpow = specular_map->m[v][u].x;
+            specpow = Texture_getuv(specular_map, uv).x;
           }
 
           /*Vec3 normal_times_d = Vec3_mul(normal, 2.0 * d);
