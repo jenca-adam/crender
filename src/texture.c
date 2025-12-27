@@ -215,10 +215,10 @@ inline Vec3 Texture_getuv(Texture *texture, Vec3 uv) {
       ->m[(int)fabs(texture->height - (clamp(uv.y, 0, 1) * texture->height))]
          [(int)fabs(clamp(uv.x, 0, 1) * texture->width)];
 }
-void Texture_draw_face(LinearTexture texture, omp_lock_t texture_lock,
-                       int width, int height, Face *face, Texture *diffuse,
-                       Texture *normal_map, Texture *specular_map,
-                       double *zbuffer, omp_lock_t zbuffer_lock, Vec3 light_dir,
+void Texture_draw_face(LinearTexture texture, int width, int height, Face *face,
+                       Texture *diffuse, Texture *normal_map,
+                       Texture *specular_map, double *zbuffer,
+                       omp_lock_t *zbuffer_locks, Vec3 light_dir,
                        Matrix transform, Matrix world_transform,
                        Matrix inverse_transform, double near_plane,
                        shading_mode mode) {
@@ -233,9 +233,11 @@ void Texture_draw_face(LinearTexture texture, omp_lock_t texture_lock,
   Vec3 n = Vec3_normalized(Vec3_cross(Vec3_sub(raw_tri.v2, raw_tri.v0),
                                       Vec3_sub(raw_tri.v1, raw_tri.v0)));
   double intensity = Vec3_dot(n, ldir);
-  if (intensity < 0) {
+#ifdef BF_CULL
+  if (intensity < -EPSILON) {
     return;
   }
+#endif
   Triangle uvs = Face_gettri(face, UV);
   Triangle vns = Face_gettri(face, NORMAL);
   Triangle tri = Triangle_transform(raw_tri, transform);
@@ -281,12 +283,11 @@ void Texture_draw_face(LinearTexture texture, omp_lock_t texture_lock,
       double z = z0 * b.x + z1 * b.y + z2 * b.z;
       int zbuffix = x + y * tw;
 
-      omp_set_lock(&zbuffer_lock);
+      omp_set_lock(&zbuffer_locks[zbuffix]);
       if (zbuffer[zbuffix] < z) {
         double spec, specpow;
         Vec3 normal;
         zbuffer[zbuffix] = z;
-        omp_unset_lock(&zbuffer_lock);
         Vec3 uv = trinterpolate(uvs, b);
         int u = clamp((int)(uv.x * diffuse->width), 0, diffuse->width - 1);
         int v =
@@ -299,7 +300,9 @@ void Texture_draw_face(LinearTexture texture, omp_lock_t texture_lock,
         }
 
         double d = Vec3_dot(normal, ldir);
-        if (mode == PHONG) {
+        if (mode == PHONG &&
+            !!specular_map) { // if there's no specular map, phong shading is
+                              // just extra work to make it brighter
           if (!specular_map) {
             specpow = 1;
           } else {
@@ -314,20 +317,15 @@ void Texture_draw_face(LinearTexture texture, omp_lock_t texture_lock,
           spec = apow(fmax(d, 0.0), specpow);
           intensity = d + spec * .6;
           if (texture) {
-            omp_set_lock(&texture_lock);
             texture[(int)(th * (th - y - 1) + x)] =
                 Vec3_phong(color, intensity, 0, 255);
-            omp_unset_lock(&texture_lock);
           }
         } else {
-          omp_set_lock(&texture_lock);
           texture[(int)(th * (th - y - 1) + x)] =
               Vec3_pack_color(Vec3_mul(color, fmax(d, 0.0)));
-          omp_unset_lock(&texture_lock);
         }
-      } else {
-        omp_unset_lock(&zbuffer_lock);
       }
+      omp_unset_lock(&zbuffer_locks[zbuffix]);
       Vec3_ADD_INPLACE(b, deltay);
     }
     Vec3_ADD_INPLACE(bbase, deltax);

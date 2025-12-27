@@ -9,8 +9,8 @@
 #include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
-#define WIDTH 600
-#define HEIGHT 600
+#define WIDTH 400
+#define HEIGHT 400
 #define RW 1200
 #define RH 1200
 #define DEPTH 1024
@@ -22,6 +22,7 @@
 #define TY 0
 #define TZ -2
 #define NEAR_PLANE (CAM_Z)
+// #define BF_CULL
 omp_lock_t zbuffer_lock, framebuffer_lock;
 
 int main(int argc, char *argv[]) {
@@ -47,23 +48,23 @@ int main(int argc, char *argv[]) {
   Texture *normal_map = Texture_readPPM("normal.ppm", dirname);
   Texture *specular_map = Texture_readPPM("specular.ppm", dirname);
   Object *object = Object_fromOBJ("obj.obj", dirname);
+  if (!object || !texture || !obj_texture) {
+    return 1;
+  }
 
   if (!initDisplay(RW, RH, WIDTH, HEIGHT, "renderer")) {
     return 1;
   };
-  if (!object || !texture || !obj_texture) {
-    return 1;
-  }
   printf("%d\n", object->nf);
 
   double *zbuffer = malloc(width * height * sizeof(double));
+  omp_lock_t *zbuffer_locks = malloc(width * height * sizeof(omp_lock_t));
   LinearTexture framebuffer = malloc(width * height * sizeof(uint32_t));
   for (int i = 0; i < width * height; i++) {
     zbuffer[i] = -DBL_MAX;
+    omp_init_lock(&zbuffer_locks[i]);
   }
 
-  omp_init_lock(&zbuffer_lock);
-  omp_init_lock(&framebuffer_lock);
   SDL_Event event;
   Matrix rot, transform, inverse;
   int running = 1;
@@ -141,10 +142,10 @@ int main(int argc, char *argv[]) {
     for (int fi = 0; fi < object->nf; fi++) {
       Face *face = object->faces[fi];
 
-      Texture_draw_face(framebuffer, framebuffer_lock, width, height, face,
-                        obj_texture, use_normal_map ? normal_map : NULL,
-                        specular_map, zbuffer, zbuffer_lock, light_dir,
-                        transform, tot, inverse, NEAR_PLANE, mode);
+      Texture_draw_face(framebuffer, width, height, face, obj_texture,
+                        use_normal_map ? normal_map : NULL, specular_map,
+                        zbuffer, zbuffer_locks, light_dir, transform, tot,
+                        inverse, NEAR_PLANE, mode);
     }
 
     Matrix_dealloc(rot);
