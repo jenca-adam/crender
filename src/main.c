@@ -9,8 +9,8 @@
 #include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
-#define WIDTH 400
-#define HEIGHT 400
+#define WIDTH 1200
+#define HEIGHT 1200
 #define RW 1200
 #define RH 1200
 #define DEPTH 1024
@@ -23,7 +23,6 @@
 #define TZ -2
 #define NEAR_PLANE (CAM_Z)
 // #define BF_CULL
-omp_lock_t zbuffer_lock, framebuffer_lock;
 
 int main(int argc, char *argv[]) {
   const int width = WIDTH;
@@ -172,5 +171,6 @@ int main(int argc, char *argv[]) {
   Matrix_dealloc(projection_x_viewport);
   free(zbuffer);
   free(framebuffer);
+  free(zbuffer_locks);
   return 0;
 }
