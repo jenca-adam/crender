@@ -16,18 +16,20 @@
 #define DEPTH 1024
 #define CAM_Z 3
 #define ROTATE 1
-#define MULTITHREAD 14
+#define MULTITHREAD 1
+#define N_THREADS 14
+#define SCHEDULE dynamic
 #define WET_RUN 1
 #define TX 0
 #define TY 0
 #define TZ -2
 #define NEAR_PLANE (CAM_Z)
-// #define BF_CULL
+#define BF_CULL
 
 int main(int argc, char *argv[]) {
   const int width = WIDTH;
   const int height = HEIGHT;
-  const double cam_z = CAM_Z;
+  const num cam_z = CAM_Z;
   if (argc < 2) {
     fprintf(stderr, "missing object directory (e.g. obj/head)\n");
     return 1;
@@ -42,12 +44,12 @@ int main(int argc, char *argv[]) {
   Matrix projection_x_viewport = Matrix_matmul(viewport, projection);
   Matrix_dealloc(projection);
   Matrix_dealloc(viewport);
-  Texture *texture = Texture_create(WIDTH, HEIGHT, bg);
-  Texture *obj_texture = Texture_readPPM("obj_texture.ppm", dirname);
-  Texture *normal_map = Texture_readPPM("normal.ppm", dirname);
-  Texture *specular_map = Texture_readPPM("specular.ppm", dirname);
+  Texture texture = Texture_create(WIDTH, HEIGHT, bg);
+  Texture obj_texture = Texture_readPPM("obj_texture.ppm", dirname);
+  Texture normal_map = Texture_readPPM("normal.ppm", dirname);
+  Texture specular_map = Texture_readPPM("specular.ppm", dirname);
   Object *object = Object_fromOBJ("obj.obj", dirname);
-  if (!object || !texture || !obj_texture) {
+  if (!object || !texture.m || !obj_texture.m) {
     return 1;
   }
 
@@ -56,7 +58,7 @@ int main(int argc, char *argv[]) {
   };
   printf("%d\n", object->nf);
 
-  double *zbuffer = malloc(width * height * sizeof(double));
+  num *zbuffer = malloc(width * height * sizeof(num));
   omp_lock_t *zbuffer_locks = malloc(width * height * sizeof(omp_lock_t));
   LinearTexture framebuffer = malloc(width * height * sizeof(uint32_t));
   for (int i = 0; i < width * height; i++) {
@@ -135,16 +137,20 @@ int main(int argc, char *argv[]) {
       zbuffer[i] = -DBL_MAX;
     }
     memset(framebuffer, '\x00', width * height * sizeof(uint32_t));
+
+    int drawn = 0;
 #if MULTITHREAD
-#pragma omp parallel for num_threads(MULTITHREAD)
+#pragma omp parallel for num_threads(N_THREADS) schedule(SCHEDULE)
 #endif
     for (int fi = 0; fi < object->nf; fi++) {
       Face *face = object->faces[fi];
 
-      Texture_draw_face(framebuffer, width, height, face, obj_texture,
-                        use_normal_map ? normal_map : NULL, specular_map,
-                        zbuffer, zbuffer_locks, light_dir, transform, tot,
-                        inverse, NEAR_PLANE, mode);
+      drawn += Texture_draw_face(framebuffer, width, height, face, obj_texture,
+                                 use_normal_map ? normal_map : (Texture){0},
+                                 specular_map, zbuffer, zbuffer_locks,
+                                 light_dir, transform,
+
+                                 tot, inverse, NEAR_PLANE, mode);
     }
 
     Matrix_dealloc(rot);
@@ -158,7 +164,8 @@ int main(int argc, char *argv[]) {
     // --- FPS counter update ---
     Uint32 fps_current_time = SDL_GetTicks();
     float fps = 1.0 / ((fps_current_time - frame_time) / 1000.0);
-    printf("FPS:%f model_z: %lf\r", fps, translate_vec.z);
+    printf("FPS:%f; model_z: %lf; faces: %d                   \r", fps,
+           translate_vec.z, drawn);
     fflush(stdout);
     nframes++;
   }

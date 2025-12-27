@@ -20,6 +20,6 @@ void cleanupDisplay();
 void setScreenPixel(int i, int j, Vec3 color);
 void updateDisplay(LinearTexture pixels);
 void clearDisplay(Vec3 color);
-int renderTexture(Texture *texture);
+int renderTexture(Texture texture);
 extern Display *display;
 #endif

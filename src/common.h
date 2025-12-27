@@ -9,4 +9,5 @@ typedef enum shading_mode {
    PHONG = 0,
    GOURAUD = 1, 
 } shading_mode;
+typedef float num;
 #endif

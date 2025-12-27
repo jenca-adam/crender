@@ -16,9 +16,9 @@ Matrix Matrix_empty(int rows, int cols) {
   Matrix matrix;
   matrix.rows = rows;
   matrix.cols = cols;
-  matrix.m = malloc(rows * sizeof(double *));
+  matrix.m = malloc(rows * sizeof(num *));
   for (int i = 0; i < rows; i++) {
-    matrix.m[i] = calloc(cols, sizeof(double));
+    matrix.m[i] = calloc(cols, sizeof(num));
     for (int j = 0; j < cols; j++) {
       matrix.m[i][j] = 0.0; // Initialize to zero
     }
@@ -48,13 +48,13 @@ Matrix Matrix_matmul(Matrix m1, Matrix m2) {
   return result;
 }
 
-Matrix Matrix_projection(double camz) {
+Matrix Matrix_projection(num camz) {
   Matrix mat = Matrix_identity(4);
   mat.m[3][2] = -1.0 / camz;
   return mat;
 }
 
-Matrix Matrix_viewport(double x, double y, double w, double h, double d) {
+Matrix Matrix_viewport(num x, num y, num w, num h, num d) {
   Matrix mat = Matrix_identity(4);
   mat.m[0][3] = x + w / 2.0;
   mat.m[1][3] = y + h / 2.0;
@@ -80,7 +80,7 @@ Matrix Matrix_from_vector(Vec3 vec3) {
   return mat;
 }
 
-Matrix Matrix_rotz(double theta) {
+Matrix Matrix_rotz(num theta) {
   Matrix mat = Matrix_identity(4);
   mat.m[0][0] = cos(theta);
   mat.m[0][1] = -sin(theta);
@@ -89,7 +89,7 @@ Matrix Matrix_rotz(double theta) {
   return mat;
 }
 
-Matrix Matrix_roty(double theta) {
+Matrix Matrix_roty(num theta) {
   Matrix mat = Matrix_identity(4);
   mat.m[0][0] = cos(theta);
   mat.m[2][0] = -sin(theta);
@@ -98,7 +98,7 @@ Matrix Matrix_roty(double theta) {
   return mat;
 }
 
-Matrix Matrix_rotx(double theta) {
+Matrix Matrix_rotx(num theta) {
   Matrix mat = Matrix_identity(4);
   mat.m[1][1] = cos(theta);
   mat.m[1][2] = -sin(theta);
@@ -127,16 +127,16 @@ Matrix Matrix_get_minor(Matrix matrix, int row, int col) {
   return minor;
 }
 
-double Matrix_determinant(Matrix matrix) {
+num Matrix_determinant(Matrix matrix) {
   int n = matrix.rows;
   if (n == 1) {
     return matrix.m[0][0];
   }
 
-  double det = 0.0;
+  num det = 0.0;
   for (int j = 0; j < n; j++) {
     Matrix minor = Matrix_get_minor(matrix, 0, j);
-    double cofactor = matrix.m[0][j] * Matrix_determinant(minor);
+    num cofactor = matrix.m[0][j] * Matrix_determinant(minor);
     Matrix_dealloc(minor);
     if (j % 2 != 0) {
       cofactor = -cofactor;
@@ -157,7 +157,7 @@ Matrix Matrix_adjugate(Matrix matrix) {
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < n; j++) {
       Matrix minor = Matrix_get_minor(matrix, i, j);
-      double cofactor = Matrix_determinant(minor);
+      num cofactor = Matrix_determinant(minor);
       Matrix_dealloc(minor);
       if ((i + j) % 2 != 0) {
         cofactor = -cofactor;
@@ -170,13 +170,13 @@ Matrix Matrix_adjugate(Matrix matrix) {
 
 Matrix Matrix_inverse4(Matrix matrix) {
   Matrix inv = Matrix_empty(4, 4);
-  double **m = matrix.m;
-  double det = Matrix_determinant(matrix);
+  num **m = matrix.m;
+  num det = Matrix_determinant(matrix);
   if (det == 0) {
     return inv;
   }
 
-  double inv_det = 1.0 / det;
+  num inv_det = 1.0 / det;
   inv.m[0][0] = (m[1][1] * (m[2][2] * m[3][3] - m[2][3] * m[3][2]) -
                  m[1][2] * (m[2][1] * m[3][3] - m[2][3] * m[3][1]) +
                  m[1][3] * (m[2][1] * m[3][2] - m[2][2] * m[3][1])) *
@@ -267,7 +267,7 @@ Matrix Matrix_inverse(Matrix matrix) {
   if (n == 4) {
     return Matrix_inverse4(matrix);
   }
-  double det = Matrix_determinant(matrix);
+  num det = Matrix_determinant(matrix);
   if (fabs(det) < 1e-9) {
     return Matrix_empty(0, 0); // Return an empty matrix
   }
@@ -285,13 +285,13 @@ Matrix Matrix_inverse(Matrix matrix) {
 }
 
 Vec3 Vec3_transform(Vec3 v, Matrix m) {
-  double x = v.x, y = v.y, z = v.z;
-  double w = 1.0;
+  num x = v.x, y = v.y, z = v.z;
+  num w = 1.0;
 
-  double nx = m.m[0][0] * x + m.m[0][1] * y + m.m[0][2] * z + m.m[0][3] * w;
-  double ny = m.m[1][0] * x + m.m[1][1] * y + m.m[1][2] * z + m.m[1][3] * w;
-  double nz = m.m[2][0] * x + m.m[2][1] * y + m.m[2][2] * z + m.m[2][3] * w;
-  double nw = m.m[3][0] * x + m.m[3][1] * y + m.m[3][2] * z + m.m[3][3] * w;
+  num nx = m.m[0][0] * x + m.m[0][1] * y + m.m[0][2] * z + m.m[0][3] * w;
+  num ny = m.m[1][0] * x + m.m[1][1] * y + m.m[1][2] * z + m.m[1][3] * w;
+  num nz = m.m[2][0] * x + m.m[2][1] * y + m.m[2][2] * z + m.m[2][3] * w;
+  num nw = m.m[3][0] * x + m.m[3][1] * y + m.m[3][2] * z + m.m[3][3] * w;
 
   return Vec3_create(nx / nw, ny / nw, nz / nw);
 }
@@ -305,7 +305,7 @@ Vec3 Vec3_transform3(Vec3 v, Matrix mat) {
   return out;
 }
 
-void Vec3_setItem(Vec3 *v, int i, double a) {
+void Vec3_setItem(Vec3 *v, int i, num a) {
   switch (i) {
   case 0:
     v->x = a;

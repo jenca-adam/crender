@@ -18,7 +18,8 @@ int initDisplay(int width, int height, int render_width, int render_height,
     SDL_Quit();
     return 0;
   }
-  SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, 0);
+  SDL_Renderer *renderer = SDL_CreateRenderer(
+      window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
   if (!renderer) {
     _display_error("initDisplay: SDL_CreateRenderer failure");
     SDL_DestroyWindow(window);
@@ -74,7 +75,7 @@ void setScreenPixel(int i, int j, Vec3 color) {
   SDL_SetRenderDrawColor(display->renderer, color.x, color.y, color.z, 255);
   SDL_RenderFillRect(display->renderer, &rect);
 }
-int renderTexture(Texture *texture) {
+int renderTexture(Texture texture) {
   if (!display) {
     fprintf(stderr, "renderTexture: display not initialised\n");
     return 0;

@@ -39,11 +39,11 @@ void Object_addFace(Object *object, Face *face) {
 }
 Vec3 read_vec3(FILE *fp) {
   char buffer[1024];
-  double x = 0;
-  double y = 0;
-  double z = 0;
+  num x = 0;
+  num y = 0;
+  num z = 0;
   if (fgets(buffer, sizeof(buffer), fp)) {
-    sscanf(buffer, "%lf %lf %lf", &x, &y, &z);
+    sscanf(buffer, "%f %f %f", &x, &y, &z);
     return Vec3_create(x, y, z);
   }
   return Vec3_create(NAN, NAN, NAN);
