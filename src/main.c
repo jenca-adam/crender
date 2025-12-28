@@ -1,123 +1,111 @@
-#include "color.h"
-#include "core.h"
+#include "common.h"
 #include "display.h"
-#include "obj.h"
-#include "texture.h"
-#include "tri.h"
-#include <limits.h>
-#include <math.h>
-#include <omp.h>
+#include "scene.h"
 #include <stdio.h>
-#include <stdlib.h>
-#define WIDTH 600
-#define HEIGHT 600
-#define RW 1200
-#define RH 1200
-#define DEPTH 1024
+#define WIN_WIDTH 800
+#define WIN_HEIGHT 800
+#define RENDER_SAMPLE .5f
+#define DEPTH 0
 #define CAM_Z 3
 #define ROTATEY 1
 #define ROTATEX 1
 #define ROTATEZ 1
-#define MULTITHREAD 1
 #define N_THREADS 14
-#define SCHEDULE dynamic
 #define WET_RUN 1
 #define TX 0
 #define TY 0
-#define TZ -2
+#define TZ 2
 #define NEAR_PLANE (CAM_Z)
-#define BF_CULL
 
 int main(int argc, char *argv[]) {
-  const int width = WIDTH;
-  const int height = HEIGHT;
+  int width = WIN_WIDTH * RENDER_SAMPLE;
+  int height = WIN_HEIGHT * RENDER_SAMPLE;
   const num cam_z = CAM_Z;
+  Vec3 bg = {0, 0, 0};
   if (argc < 2) {
     fprintf(stderr, "missing object directory (e.g. obj/head)\n");
     return 1;
   }
   char *dirname = argv[argc - 1];
-  Vec3 light_dir = Vec3_create(0, 0, -1);
-  Vec3 bg = Vec3_create(0, 0, 0);
-  Vec3 fg = Vec3_create(255, 255, 0);
-  Matrix projection = Matrix_projection(cam_z);
-  Matrix viewport = Matrix_viewport(width / 8., height / 8., width * 3 / 4.,
-                                    height * 3 / 4., DEPTH);
-  Matrix projection_x_viewport = Matrix_matmul(viewport, projection);
-  Matrix_dealloc(projection);
-  Matrix_dealloc(viewport);
-  Texture texture = Texture_create(WIDTH, HEIGHT, bg);
-  Texture obj_texture = Texture_readPPM("obj_texture.ppm", dirname);
-  Texture normal_map = Texture_readPPM("normal.ppm", dirname);
-  Texture specular_map = Texture_readPPM("specular.ppm", dirname);
-  Object *object = Object_fromOBJ("obj.obj", dirname);
-  if (!object || !texture.m || !obj_texture.m) {
-    return 1;
-  }
-
-  if (!initDisplay(RW, RH, WIDTH, HEIGHT, "renderer")) {
-    return 1;
+  Vec3 light_dir = {0, 0, -1};
+  SceneSettings settings = {
+      .mode = PHONG,
+      .render_width = width,
+      .render_height = height,
+      .render_depth = DEPTH,
+      .cam_z = cam_z,
+      .fov = 1,
+      .near_plane = NEAR_PLANE,
+      .light_dir = light_dir,
+      .use_normal_map = true,
   };
-  printf("%d\n", object->nf);
-
-  num *zbuffer = malloc(width * height * sizeof(num));
-  omp_lock_t *zbuffer_locks = malloc(width * height * sizeof(omp_lock_t));
-  LinearTexture framebuffer = malloc(width * height * sizeof(uint32_t));
-  for (int i = 0; i < width * height; i++) {
-    zbuffer[i] = -FLT_MAX;
-    omp_init_lock(&zbuffer_locks[i]);
+  Scene scene = Scene_create(settings);
+  Entity main_entity = Entity_create();
+  if (!Entity_load_dir(&main_entity, dirname)) {
+    return 1;
   }
 
-  SDL_Event event;
-  Matrix rot, transform, inverse;
+  Scene_add_entity(&scene, &main_entity);
+
+  if (!initDisplay(WIN_WIDTH, WIN_HEIGHT, width, height, "renderer")) {
+    return 1;
+  }
+  Scene_init(&scene);
   int running = 1;
-  int nframes = 0;
-  float deg_roty = 0, deg_rotx = 0, deg_rotz = 0;
-  float rotatey = 0, rotatex = 0, rotatez = 0;
-  int use_normal_map = 1;
-  shading_mode mode = PHONG;
-  Vec3 translate_vec = {0, 0, 0};
-  Vec3 tdelta = {0, 0, 0};
-  Uint32 frame_time = SDL_GetTicks();
+  Vec3 delta_rot = {0, 0, 0};
+  Vec3 delta_trans = {0, 0, 0};
+  uint32_t frame_time = SDL_GetTicks();
   while (running) {
     float dt = (SDL_GetTicks() - frame_time) / 1000.0;
-    frame_time = SDL_GetTicks(); // last time we measured
-
+    printf("FPS:%5.2f\r", 1 / dt);
+    fflush(stdout);
+    frame_time = SDL_GetTicks();
+    SDL_Event event;
     while (SDL_PollEvent(&event)) {
       if (event.type == SDL_QUIT) {
         running = 0;
         break;
+      } else if (event.type == SDL_WINDOWEVENT &&
+                 event.window.event == SDL_WINDOWEVENT_RESIZED) {
+        // Scene_resize(&scene, event.window.data1 * RENDER_SAMPLE,
+        //              event.window.data2 * RENDER_SAMPLE);
+
+        display->render_width = scene.settings.render_width =
+            event.window.data1 * RENDER_SAMPLE;
+        display->render_height = scene.settings.render_height =
+            event.window.data2 * RENDER_SAMPLE;
+        // Scene_update_settings(&scene);
       } else if (event.type == SDL_KEYDOWN) {
         switch (event.key.keysym.sym) {
         case SDLK_LEFT:
-          rotatey = -ROTATEY;
+          delta_rot.y = -ROTATEY;
           break;
         case SDLK_RIGHT:
-          rotatey = ROTATEY;
-          break;
-        case 'w':
-          rotatex = ROTATEX;
-          break;
-        case 's':
-          rotatex = -ROTATEX;
-          break;
-        case 'a':
-          rotatez = ROTATEZ;
-          break;
-        case 'd':
-          rotatez = -ROTATEZ;
+          delta_rot.y = ROTATEY;
           break;
         case SDLK_UP:
-          tdelta.z = TZ * dt;
+          delta_trans.z = -TZ;
           break;
         case SDLK_DOWN:
-          tdelta.z = -TZ * dt;
+          delta_trans.z = TZ;
+          break;
+        case 'w':
+          delta_rot.x = -ROTATEX;
+          break;
+        case 's':
+          delta_rot.x = ROTATEX;
+          break;
+        case 'a':
+          delta_rot.z = ROTATEZ;
+          break;
+        case 'd':
+          delta_rot.z = -ROTATEZ;
           break;
         case 'm':
-          mode = mode == PHONG ? GOURAUD : PHONG;
+          scene.settings.mode = scene.settings.mode == PHONG ? GOURAUD : PHONG;
           break;
         case 'n':
-          use_normal_map = !use_normal_map;
+          scene.settings.use_normal_map = !scene.settings.use_normal_map;
           break;
         default:
           break;
@@ -126,87 +114,32 @@ int main(int argc, char *argv[]) {
         switch (event.key.keysym.sym) {
         case SDLK_LEFT:
         case SDLK_RIGHT:
-          rotatey = 0;
-          break;
-        case SDLK_UP:
-        case SDLK_DOWN:
-          tdelta.z = 0;
+          delta_rot.y = 0;
           break;
         case 'w':
         case 's':
-          rotatex = 0;
+          delta_rot.x = 0;
           break;
         case 'a':
         case 'd':
-          rotatez = 0;
+          delta_rot.z = 0;
           break;
+        case SDLK_UP:
+        case SDLK_DOWN:
+          delta_trans.z = 0;
         default:
           break;
         }
       }
     }
-
-    deg_roty += dt * rotatey;
-    deg_rotx += dt * rotatex;
-    deg_rotz += dt * rotatez;
-    Vec3_ADD_INPLACE(translate_vec, tdelta);
-    Matrix trans = Matrix_translation(translate_vec);
-    Matrix roty = Matrix_roty(deg_roty);
-    Matrix rotx = Matrix_rotx(deg_rotx);
-    Matrix rotz = Matrix_rotz(deg_rotz);
-    Matrix rot = Matrix_matmul(Matrix_matmul(rotx, roty), rotz);
-    Matrix inverse = Matrix_inverse(rot);
-    Matrix tot = Matrix_matmul(trans, rot);
-    Matrix transform = Matrix_matmul(projection_x_viewport, tot);
-
+    Entity_rotate(&main_entity, Vec3_mul(delta_rot, dt));
+    Entity_translate_world_space(&main_entity, Vec3_mul(delta_trans, dt));
+    Scene_reset_buffers(&scene);
+    Scene_render(&scene, N_THREADS);
     clearDisplay(bg);
-    for (int i = 0; i < width * height; i++) {
-      zbuffer[i] = -FLT_MAX;
-    }
-    memset(framebuffer, '\x00', width * height * sizeof(uint32_t));
-
-    int drawn = 0;
-#if MULTITHREAD
-#pragma omp parallel for num_threads(N_THREADS) schedule(SCHEDULE)
-#endif
-    for (int fi = 0; fi < object->nf; fi++) {
-      Face *face = object->faces[fi];
-
-      drawn += Texture_draw_face(framebuffer, width, height, face, obj_texture,
-                                 use_normal_map ? normal_map : (Texture){0},
-                                 specular_map, zbuffer, zbuffer_locks,
-                                 light_dir, transform,
-
-                                 tot, inverse, NEAR_PLANE, mode);
-    }
-    Matrix_dealloc(roty);
-    Matrix_dealloc(rotx);
-    Matrix_dealloc(rotz);
-    Matrix_dealloc(rot);
-    Matrix_dealloc(tot);
-    Matrix_dealloc(inverse);
-    Matrix_dealloc(transform);
-    Matrix_dealloc(trans);
-#if WET_RUN
-    updateDisplay(framebuffer);
-#endif
-    // --- FPS counter update ---
-    Uint32 fps_current_time = SDL_GetTicks();
-    float fps = 1.0 / ((fps_current_time - frame_time) / 1000.0);
-    printf("FPS:%f; model_z: %lf; faces: %d                   \r", fps,
-           translate_vec.z, drawn);
-    fflush(stdout);
-    nframes++;
+    updateDisplay(scene.framebuffer);
   }
+  Scene_dealloc(&scene);
   cleanupDisplay();
-  Texture_dealloc(texture);
-  Texture_dealloc(obj_texture);
-  Texture_dealloc(normal_map);
-  Texture_dealloc(specular_map);
-  Object_dealloc(object);
-  Matrix_dealloc(projection_x_viewport);
-  free(zbuffer);
-  free(framebuffer);
-  free(zbuffer_locks);
   return 0;
 }

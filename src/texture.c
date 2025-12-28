@@ -190,8 +190,8 @@ static inline Vec3 Texture_getuv(const Texture t, Vec3 uv) {
   int y = (int)(fabs(clamp((1 - uv.y), 0.0, 1.0)) * (t.height - 1));
   return t.m[y * t.width + x];
 }
-inline Vec3 _interp_correct(Vec3 v0, Vec3 v1, Vec3 v2, Vec3 b, num w0, num w1,
-                            num w2) {
+static inline Vec3 _interp_correct(Vec3 v0, Vec3 v1, Vec3 v2, Vec3 b, num w0,
+                                   num w1, num w2) {
   num bxw = b.x * w0, byw = b.y * w1, bzw = b.z * w2;
   num iw = w0 * b.x + w1 * b.y + w2 * b.z;
   return (Vec3){
@@ -208,7 +208,7 @@ bool Texture_draw_face(LinearTexture texture, int width, int height, Face *face,
                        Matrix transform, Matrix world_transform,
                        Matrix inverse_transform, num near_plane,
                        shading_mode mode) {
-  Vec3 l = Vec3_transform(light_dir, inverse_transform);
+  Vec3 l = Vec3_transform_dir(light_dir, inverse_transform);
   Vec3 ldir = Vec3_normalized(l);
   Triangle raw_tri = Face_gettri(face, VERTEX);
   Triangle world_tri = Triangle_transform(raw_tri, world_transform);
@@ -219,7 +219,7 @@ bool Texture_draw_face(LinearTexture texture, int width, int height, Face *face,
   Vec3 n = Vec3_normalized(Vec3_cross(Vec3_sub(raw_tri.v2, raw_tri.v0),
                                       Vec3_sub(raw_tri.v1, raw_tri.v0)));
   num intensity = Vec3_dot(n, ldir);
-#ifdef BF_CULL
+#ifndef NO_BFCULL
   if (intensity < -EPSILON) {
     return false;
   }
@@ -228,10 +228,9 @@ bool Texture_draw_face(LinearTexture texture, int width, int height, Face *face,
   Triangle vns = Face_gettri(face, NORMAL);
   Vec3 ws;
   Triangle tri = Triangle_transform4(raw_tri, transform, &ws);
-  num x0 = tri.v0.x, y0 = tri.v0.y, z0 = tri.v0.z;
-  num x1 = tri.v1.x, y1 = tri.v1.y, z1 = tri.v1.z;
-  num x2 = tri.v2.x, y2 = tri.v2.y, z2 = tri.v2.z;
-  // Triangle_bary_precomp(&tri);
+  num x0 = tri.v0.x, y0 = tri.v0.y;
+  num x1 = tri.v1.x, y1 = tri.v1.y;
+  num x2 = tri.v2.x, y2 = tri.v2.y;
   num bary_denom = 1 / ((x2 - x0) * (y1 - y0) - (x1 - x0) * (y2 - y0));
   int minx = fmax(0, fmin3(x0, x1, x2));
   int maxx = fmin(width, fmax3(x0, x1, x2));
@@ -290,7 +289,6 @@ bool Texture_draw_face(LinearTexture texture, int width, int height, Face *face,
         } else {
           normal = (Vec3_normal_from_color(Texture_getuv(normal_map, uv)));
         }
-
         num d = Vec3_dot(normal, ldir);
         if (mode == PHONG) { // if there's no specular map,
                              // phong shading is useless(?)
@@ -308,11 +306,11 @@ bool Texture_draw_face(LinearTexture texture, int width, int height, Face *face,
           spec = apow(fmax(d, 0.0), specpow);
           intensity = d + spec * .6;
           if (texture) {
-            texture[(int)(th * (th - y - 1) + x)] =
+            texture[(int)(tw * (th - y - 1) + x)] =
                 Vec3_phong(color, intensity, 0, 255);
           }
         } else {
-          texture[(int)(th * (th - y - 1) + x)] =
+          texture[(int)(tw * (th - y - 1) + x)] =
               Vec3_pack_color(Vec3_mul(color, fmax(d, 0.0)));
         }
       }

@@ -12,7 +12,7 @@ int initDisplay(int width, int height, int render_width, int render_height,
   }
   SDL_Window *window =
       SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                       width, height, SDL_WINDOW_SHOWN);
+                       width, height, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
   if (!window) {
     _display_error("initDisplay: SDL_CreateWindow failure");
     SDL_Quit();
@@ -35,9 +35,9 @@ int initDisplay(int width, int height, int render_width, int render_height,
   display->block_height = height / render_height;
   display->window = window;
   display->renderer = renderer;
-  display->fbuf = SDL_CreateTexture(
+  /*display->fbuf = SDL_CreateTexture(
       renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING,
-      display->render_width, display->render_height);
+      display->render_width, display->render_height);*/
   return 1;
 }
 
@@ -62,10 +62,14 @@ void clearDisplay(Vec3 color) {
 }
 
 void updateDisplay(LinearTexture pixels) {
-  SDL_UpdateTexture(display->fbuf, NULL, pixels,
+  SDL_Texture *fbuf = SDL_CreateTexture(
+      display->renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING,
+      display->render_width, display->render_height);
+  SDL_UpdateTexture(fbuf, NULL, pixels,
                     display->render_width * sizeof(uint32_t));
-  SDL_RenderCopy(display->renderer, display->fbuf, NULL, NULL);
+  SDL_RenderCopy(display->renderer, fbuf, NULL, NULL);
   SDL_RenderPresent(display->renderer);
+  SDL_DestroyTexture(fbuf);
 }
 
 void setScreenPixel(int i, int j, Vec3 color) {

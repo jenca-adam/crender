@@ -3,6 +3,7 @@
 #include "core.h"
 #include <math.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 Vec3 Vec3_copy(Vec3 v) { return Vec3_create(v.x, v.y, v.z); }
@@ -33,7 +34,13 @@ Matrix Matrix_identity(int size) {
   }
   return matrix;
 }
-
+Matrix Matrix_clone(Matrix m) {
+  Matrix copy = Matrix_empty(m.rows, m.cols);
+  for (int i = 0; i < m.rows; i++)
+    for (int j = 0; j < m.cols; j++)
+      copy.m[i][j] = m.m[i][j];
+  return copy;
+}
 Matrix Matrix_matmul(Matrix m1, Matrix m2) {
   int rows = m1.rows, cols = m2.cols;
   Matrix result = Matrix_empty(rows, cols);
@@ -48,9 +55,12 @@ Matrix Matrix_matmul(Matrix m1, Matrix m2) {
   return result;
 }
 
-Matrix Matrix_projection(num camz) {
+Matrix Matrix_projection(num camz, num fov, num aspect) {
   Matrix mat = Matrix_identity(4);
-  mat.m[3][2] = -1.0 / camz;
+  mat.m[0][0] = fov / aspect;
+  mat.m[1][1] = fov;
+  mat.m[2][2] = camz;
+  mat.m[3][2] = -1.f / camz;
   return mat;
 }
 
@@ -70,6 +80,18 @@ Matrix Matrix_translation(Vec3 v) {
   mat.m[1][3] = v.y;
   mat.m[2][3] = v.z;
   return mat;
+}
+Matrix Matrix_rotation(Vec3 thetas) {
+  Matrix rotz = Matrix_rotz(thetas.z);
+  Matrix roty = Matrix_roty(thetas.y);
+  Matrix rotx = Matrix_rotx(thetas.x);
+  Matrix rotzy = Matrix_matmul(rotz, roty);
+  Matrix rot = Matrix_matmul(rotzy, rotx);
+  Matrix_dealloc(rotz);
+  Matrix_dealloc(roty);
+  Matrix_dealloc(rotx);
+  Matrix_dealloc(rotzy);
+  return rot;
 }
 Matrix Matrix_from_vector(Vec3 vec3) {
   Matrix mat = Matrix_empty(4, 1);
@@ -304,6 +326,17 @@ Vec3 Vec3_transform3(Vec3 v, Matrix mat) {
   Matrix_dealloc(result);
   return out;
 }
+
+Vec3 Vec3_transform_dir(Vec3 v, Matrix mat) {
+  Vec3 out;
+  if (mat.rows < 3 || mat.cols < 3)
+    return v;
+  out.x = v.x * mat.m[0][0] + v.y * mat.m[0][1] + v.z * mat.m[0][2];
+  out.y = v.x * mat.m[1][0] + v.y * mat.m[1][1] + v.z * mat.m[1][2];
+  out.z = v.x * mat.m[2][0] + v.y * mat.m[2][1] + v.z * mat.m[2][2];
+  return out;
+}
+
 Vec4 Vec4_transform(Vec3 v, Matrix m) {
   num x = v.x, y = v.y, z = v.z, w = 1.0;
 
@@ -326,5 +359,13 @@ void Vec3_setItem(Vec3 *v, int i, num a) {
     break;
   default:
     break;
+  }
+}
+void Matrix_print(Matrix m) {
+  for (int i = 0; i < m.rows; i++) {
+    for (int j = 0; j < m.cols; j++) {
+      printf("%.2f, ", m.m[i][j]);
+    }
+    printf("\n");
   }
 }

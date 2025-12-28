@@ -3,8 +3,9 @@
 #define EPSILON 1e-2
 #define VIEWPORT_DEPTH 255
 #define AMBIENT 0
-#define clamp(a, lo, hi) (a > hi) ? hi : ((a < lo) ? lo : a)
 
+#define SCHEDULE dynamic
+#define clamp(a, lo, hi) (a > hi) ? hi : ((a < lo) ? lo : a)
 typedef enum shading_mode {
    PHONG = 0,
    GOURAUD = 1, 
