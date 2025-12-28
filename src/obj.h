@@ -18,8 +18,6 @@ typedef struct Object{
 	int nuv;
 	int nn;
 	int nf;
-	
-
 } Object;
 typedef enum FACE_TRI_TYPE{
 	VERTEX = 0,

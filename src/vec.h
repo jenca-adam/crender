@@ -4,6 +4,7 @@
 #include<math.h>
 #include "common.h"
 #define Vec3_ADD_INPLACE(a,b) a.x+=b.x; a.y+=b.y; a.z+=b.z
+#define Vec3_NEG_INPLACE(a) a.x=-a.x; a.y=-a.y; a.z=-a.z
 typedef struct Vec2{
 	num x;
 	num y;
@@ -13,6 +14,10 @@ typedef struct Vec3{
 	num y;
 	num z;
 } Vec3;
+typedef struct Vec4{
+  num x, y, z, w;
+} Vec4;
+
 typedef struct Matrix{
 	int rows;
 	int cols;
@@ -81,7 +86,12 @@ inline uint32_t Vec3_pack_color(Vec3 v){
 inline Vec3 Vec3_normal_from_color(Vec3 color) {
   return (Vec3){-(color.x/(num)127.5)+1, -(color.y/(num)127.5)+1, -(color.z/(num)127.5)+1};
 }
-
+inline void Vec3_normalize(Vec3 *v){
+    num l =Vec3_length(*v);
+    v->x/=l;
+    v->y/=l;
+    v->z/=l;
+}
 Matrix Matrix_empty(int rows, int cols);
 Matrix Matrix_identity(int size);
 Matrix Matrix_matmul(Matrix m1, Matrix m2);
@@ -99,4 +109,5 @@ Vec3 Vec3_transform(Vec3 v, Matrix mat);
 Vec3 Vec3_transform3(Vec3 v, Matrix mat);
 void Vec3_set_item(Vec3 v, int i, num a);
 num Vec3_get_item(Vec3 v, int i);
+Vec4 Vec4_transform(Vec3 v, Matrix m); 
 #endif

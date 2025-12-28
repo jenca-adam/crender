@@ -304,6 +304,14 @@ Vec3 Vec3_transform3(Vec3 v, Matrix mat) {
   Matrix_dealloc(result);
   return out;
 }
+Vec4 Vec4_transform(Vec3 v, Matrix m) {
+  num x = v.x, y = v.y, z = v.z, w = 1.0;
+
+  return (Vec4){m.m[0][0] * x + m.m[0][1] * y + m.m[0][2] * z + m.m[0][3] * w,
+                m.m[1][0] * x + m.m[1][1] * y + m.m[1][2] * z + m.m[1][3] * w,
+                m.m[2][0] * x + m.m[2][1] * y + m.m[2][2] * z + m.m[2][3] * w,
+                m.m[3][0] * x + m.m[3][1] * y + m.m[3][2] * z + m.m[3][3] * w};
+}
 
 void Vec3_setItem(Vec3 *v, int i, num a) {
   switch (i) {

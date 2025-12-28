@@ -9,13 +9,15 @@
 #include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
-#define WIDTH 1200
-#define HEIGHT 1200
+#define WIDTH 600
+#define HEIGHT 600
 #define RW 1200
 #define RH 1200
 #define DEPTH 1024
 #define CAM_Z 3
-#define ROTATE 1
+#define ROTATEY 1
+#define ROTATEX 1
+#define ROTATEZ 1
 #define MULTITHREAD 1
 #define N_THREADS 14
 #define SCHEDULE dynamic
@@ -62,7 +64,7 @@ int main(int argc, char *argv[]) {
   omp_lock_t *zbuffer_locks = malloc(width * height * sizeof(omp_lock_t));
   LinearTexture framebuffer = malloc(width * height * sizeof(uint32_t));
   for (int i = 0; i < width * height; i++) {
-    zbuffer[i] = -DBL_MAX;
+    zbuffer[i] = -FLT_MAX;
     omp_init_lock(&zbuffer_locks[i]);
   }
 
@@ -70,8 +72,8 @@ int main(int argc, char *argv[]) {
   Matrix rot, transform, inverse;
   int running = 1;
   int nframes = 0;
-  float deg_rot = 0;
-  float rotate = 0;
+  float deg_roty = 0, deg_rotx = 0, deg_rotz = 0;
+  float rotatey = 0, rotatex = 0, rotatez = 0;
   int use_normal_map = 1;
   shading_mode mode = PHONG;
   Vec3 translate_vec = {0, 0, 0};
@@ -88,10 +90,22 @@ int main(int argc, char *argv[]) {
       } else if (event.type == SDL_KEYDOWN) {
         switch (event.key.keysym.sym) {
         case SDLK_LEFT:
-          rotate = -ROTATE;
+          rotatey = -ROTATEY;
           break;
         case SDLK_RIGHT:
-          rotate = ROTATE;
+          rotatey = ROTATEY;
+          break;
+        case 'w':
+          rotatex = ROTATEX;
+          break;
+        case 's':
+          rotatex = -ROTATEX;
+          break;
+        case 'a':
+          rotatez = ROTATEZ;
+          break;
+        case 'd':
+          rotatez = -ROTATEZ;
           break;
         case SDLK_UP:
           tdelta.z = TZ * dt;
@@ -112,11 +126,19 @@ int main(int argc, char *argv[]) {
         switch (event.key.keysym.sym) {
         case SDLK_LEFT:
         case SDLK_RIGHT:
-          rotate = 0;
+          rotatey = 0;
           break;
         case SDLK_UP:
         case SDLK_DOWN:
           tdelta.z = 0;
+          break;
+        case 'w':
+        case 's':
+          rotatex = 0;
+          break;
+        case 'a':
+        case 'd':
+          rotatez = 0;
           break;
         default:
           break;
@@ -124,17 +146,22 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    deg_rot += dt * rotate;
+    deg_roty += dt * rotatey;
+    deg_rotx += dt * rotatex;
+    deg_rotz += dt * rotatez;
     Vec3_ADD_INPLACE(translate_vec, tdelta);
     Matrix trans = Matrix_translation(translate_vec);
-    Matrix rot = Matrix_roty(deg_rot);
+    Matrix roty = Matrix_roty(deg_roty);
+    Matrix rotx = Matrix_rotx(deg_rotx);
+    Matrix rotz = Matrix_rotz(deg_rotz);
+    Matrix rot = Matrix_matmul(Matrix_matmul(rotx, roty), rotz);
     Matrix inverse = Matrix_inverse(rot);
     Matrix tot = Matrix_matmul(trans, rot);
     Matrix transform = Matrix_matmul(projection_x_viewport, tot);
 
     clearDisplay(bg);
     for (int i = 0; i < width * height; i++) {
-      zbuffer[i] = -DBL_MAX;
+      zbuffer[i] = -FLT_MAX;
     }
     memset(framebuffer, '\x00', width * height * sizeof(uint32_t));
 
@@ -152,7 +179,9 @@ int main(int argc, char *argv[]) {
 
                                  tot, inverse, NEAR_PLANE, mode);
     }
-
+    Matrix_dealloc(roty);
+    Matrix_dealloc(rotx);
+    Matrix_dealloc(rotz);
     Matrix_dealloc(rot);
     Matrix_dealloc(tot);
     Matrix_dealloc(inverse);

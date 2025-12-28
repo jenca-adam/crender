@@ -190,6 +190,17 @@ static inline Vec3 Texture_getuv(const Texture t, Vec3 uv) {
   int y = (int)(fabs(clamp((1 - uv.y), 0.0, 1.0)) * (t.height - 1));
   return t.m[y * t.width + x];
 }
+inline Vec3 _interp_correct(Vec3 v0, Vec3 v1, Vec3 v2, Vec3 b, num w0, num w1,
+                            num w2) {
+  num bxw = b.x * w0, byw = b.y * w1, bzw = b.z * w2;
+  num iw = w0 * b.x + w1 * b.y + w2 * b.z;
+  return (Vec3){
+      (v0.x * bxw + v1.x * byw + v2.x * bzw) / iw,
+      (v0.y * bxw + v1.y * byw + v2.y * bzw) / iw,
+      (v0.z * bxw + v1.z * byw + v2.z * bzw) / iw,
+  };
+}
+
 bool Texture_draw_face(LinearTexture texture, int width, int height, Face *face,
                        Texture diffuse, Texture normal_map,
                        Texture specular_map, num *zbuffer,
@@ -215,7 +226,8 @@ bool Texture_draw_face(LinearTexture texture, int width, int height, Face *face,
 #endif
   Triangle uvs = Face_gettri(face, UV);
   Triangle vns = Face_gettri(face, NORMAL);
-  Triangle tri = Triangle_transform(raw_tri, transform);
+  Vec3 ws;
+  Triangle tri = Triangle_transform4(raw_tri, transform, &ws);
   num x0 = tri.v0.x, y0 = tri.v0.y, z0 = tri.v0.z;
   num x1 = tri.v1.x, y1 = tri.v1.y, z1 = tri.v1.z;
   num x2 = tri.v2.x, y2 = tri.v2.y, z2 = tri.v2.z;
@@ -225,7 +237,9 @@ bool Texture_draw_face(LinearTexture texture, int width, int height, Face *face,
   int maxx = fmin(width, fmax3(x0, x1, x2));
   int miny = fmax(0, fmin3(y0, y1, y2));
   int maxy = fmin(height, fmax3(y0, y1, y2));
-
+  num iw0 = 1.0f / ws.x;
+  num iw1 = 1.0f / ws.y;
+  num iw2 = 1.0f / ws.z;
   num tw = width;
   num th = height;
   if (maxx < 0 || maxy < 0 || minx > tw || miny > th)
@@ -257,7 +271,9 @@ bool Texture_draw_face(LinearTexture texture, int width, int height, Face *face,
         Vec3_ADD_INPLACE(b, deltax);
         continue;
       }
-      num z = z0 * b.x + z1 * b.y + z2 * b.z;
+      num iz = iw0 * b.x + iw1 * b.y + iw2 * b.z;
+      num z = iz;
+      // num z = z0 * b.x + z1 * b.y + z2 * b.z;
       int zbuffix = x + y * tw;
       omp_lock_t *lock = &zbuffer_locks[zbuffix];
       omp_set_lock(lock);
@@ -265,21 +281,21 @@ bool Texture_draw_face(LinearTexture texture, int width, int height, Face *face,
         num spec, specpow;
         Vec3 normal;
         zbuffer[zbuffix] = z;
-        Vec3 uv = trinterpolate(uvs, b);
-
+        // Vec3 uv = trinterpolate(uvs, b);
+        Vec3 uv = _interp_correct(uvs.v0, uvs.v1, uvs.v2, b, iw0, iw1, iw2);
         Vec3 color = Texture_getuv(diffuse, uv);
         if (!normal_map.m) {
-          normal = Vec3_neg(trinterpolate(vns, b));
+          normal = Vec3_neg(
+              _interp_correct(vns.v0, vns.v1, vns.v2, b, iw0, iw1, iw2));
         } else {
           normal = (Vec3_normal_from_color(Texture_getuv(normal_map, uv)));
         }
 
         num d = Vec3_dot(normal, ldir);
-        if (mode == PHONG &&
-            !!specular_map.m) { // if there's no specular map, phong shading is
-                                // just extra work to make it brighter
+        if (mode == PHONG) { // if there's no specular map,
+                             // phong shading is useless(?)
           if (!specular_map.m) {
-            specpow = 1;
+            specpow = 2;
           } else {
             specpow = Texture_getuv(specular_map, uv).x;
           }
