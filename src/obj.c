@@ -1,12 +1,12 @@
-#include "obj.h"
+#include "crender.h"
 #include <errno.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-Object *Object_new() {
-  Object *object = malloc(sizeof(Object));
+cr_Object *cr_Object_new() {
+  cr_Object *object = malloc(sizeof(cr_Object));
   object->vertices = NULL;
   object->uvs = NULL;
   object->normals = NULL;
@@ -17,36 +17,38 @@ Object *Object_new() {
   object->nf = 0;
   return object;
 }
-void Object_addVertex(Object *object, Vec3 vertex) {
-  object->vertices = realloc(object->vertices, (object->nv + 1) * sizeof(Vec3));
+void cr_Object_add_vertex(cr_Object *object, cr_Vec3 vertex) {
+  object->vertices =
+      realloc(object->vertices, (object->nv + 1) * sizeof(cr_Vec3));
   object->vertices[object->nv] = vertex;
   object->nv++;
 }
-void Object_addUV(Object *object, Vec3 uv) {
-  object->uvs = realloc(object->uvs, (object->nuv + 1) * sizeof(Vec3));
+void cr_Object_add_uv(cr_Object *object, cr_Vec3 uv) {
+  object->uvs = realloc(object->uvs, (object->nuv + 1) * sizeof(cr_Vec3));
   object->uvs[object->nuv] = uv;
   object->nuv++;
 }
-void Object_addNormal(Object *object, Vec3 normal) {
-  object->normals = realloc(object->normals, (object->nn + 1) * sizeof(Vec3));
+void cr_Object_add_normal(cr_Object *object, cr_Vec3 normal) {
+  object->normals =
+      realloc(object->normals, (object->nn + 1) * sizeof(cr_Vec3));
   object->normals[object->nn] = normal;
   object->nn++;
 }
-void Object_addFace(Object *object, Face *face) {
-  object->faces = realloc(object->faces, (object->nf + 1) * sizeof(Face *));
+void cr_Object_add_face(cr_Object *object, cr_Face *face) {
+  object->faces = realloc(object->faces, (object->nf + 1) * sizeof(cr_Face *));
   object->faces[object->nf] = face;
   object->nf++;
 }
-Vec3 read_vec3(FILE *fp) {
+cr_Vec3 read_vec3(FILE *fp) {
   char buffer[1024];
-  num x = 0;
-  num y = 0;
-  num z = 0;
+  cr_num x = 0;
+  cr_num y = 0;
+  cr_num z = 0;
   if (fgets(buffer, sizeof(buffer), fp)) {
-    sscanf(buffer, "%f %f %f", &x, &y, &z);
-    return Vec3_create(x, y, z);
+    sscanf(buffer, cr_NUM_FMT " " cr_NUM_FMT " " cr_NUM_FMT, &x, &y, &z);
+    return cr_Vec3_create(x, y, z);
   }
-  return Vec3_create(NAN, NAN, NAN);
+  return cr_Vec3_create(NAN, NAN, NAN);
 }
 void read_face_vinfo(char *vinfo, int *vindex, int *uvindex, int *nindex) {
   size_t size = strlen(vinfo);
@@ -84,12 +86,12 @@ void read_face_vinfo(char *vinfo, int *vindex, int *uvindex, int *nindex) {
   }
   fclose(stream);
 }
-Face *read_face(FILE *fp, Object *obj) {
+cr_Face *read_face(FILE *fp, cr_Object *obj) {
   char **vinfos = malloc(3 * sizeof(char *));
   for (int i = 0; i < 3; i++) {
     vinfos[i] = calloc(512, sizeof(char));
   }
-  Face *face = malloc(sizeof(Face));
+  cr_Face *face = malloc(sizeof(cr_Face));
   face->parent = obj;
   char buffer[2048];
   if (fgets(buffer, sizeof(buffer), fp)) {
@@ -121,7 +123,7 @@ Face *read_face(FILE *fp, Object *obj) {
 
   return face;
 }
-Object *Object_fromOBJ(char *fn_raw, char *dirname) {
+cr_Object *cr_Object_fromOBJ(char *fn_raw, char *dirname) {
 
   char *fn;
   if (dirname) {
@@ -134,7 +136,7 @@ Object *Object_fromOBJ(char *fn_raw, char *dirname) {
   FILE *fp = fopen(fn, "rb");
 
   if (!fp) {
-    fprintf(stderr, "Object_fromOBJ: fopen(%s) failed: %s\n", fn,
+    fprintf(stderr, "cr_Object_fromOBJ: fopen(%s) failed: %s\n", fn,
             strerror(errno));
     if (dirname)
       free(fn);
@@ -142,9 +144,9 @@ Object *Object_fromOBJ(char *fn_raw, char *dirname) {
   }
   if (dirname)
     free(fn);
-  Object *object = Object_new();
-  Vec3 arg;
-  Face *farg;
+  cr_Object *object = cr_Object_new();
+  cr_Vec3 arg;
+  cr_Face *farg;
   char *line_type = malloc(64 * sizeof(char));
   while (1) {
     if (fscanf(fp, "%s ", line_type) != 1) {
@@ -155,25 +157,25 @@ Object *Object_fromOBJ(char *fn_raw, char *dirname) {
       if (arg.x == NAN) {
         break;
       }
-      Object_addVertex(object, arg);
+      cr_Object_add_vertex(object, arg);
     } else if (!strcmp(line_type, "vt")) {
       arg = read_vec3(fp);
       if (arg.x == NAN) {
         break;
       }
-      Object_addUV(object, arg);
+      cr_Object_add_uv(object, arg);
     } else if (!strcmp(line_type, "vn")) {
       arg = read_vec3(fp);
       if (arg.x == NAN) {
         break;
       }
-      Object_addNormal(object, arg);
+      cr_Object_add_normal(object, arg);
     } else if (!strcmp(line_type, "f")) {
       farg = read_face(fp, object);
       if (!farg) {
         break;
       }
-      Object_addFace(object, farg);
+      cr_Object_add_face(object, farg);
     }
   }
   free(line_type);
@@ -181,39 +183,39 @@ Object *Object_fromOBJ(char *fn_raw, char *dirname) {
   return object;
 }
 
-Triangle Face_gettri(Face *face, FACE_TRI_TYPE tt) {
+cr_Triangle cr_Face_gettri(cr_Face *face, cr_face_tri_type tt) {
   switch (tt) {
   case VERTEX:
-    return Triangle_create(face->parent->vertices[face->vs[0] - 1],
-                           face->parent->vertices[face->vs[1] - 1],
-                           face->parent->vertices[face->vs[2] - 1]);
+    return cr_Triangle_create(face->parent->vertices[face->vs[0] - 1],
+                              face->parent->vertices[face->vs[1] - 1],
+                              face->parent->vertices[face->vs[2] - 1]);
 
   case UV:
-    return Triangle_create(face->parent->uvs[face->vts[0] - 1],
-                           face->parent->uvs[face->vts[1] - 1],
-                           face->parent->uvs[face->vts[2] - 1]);
+    return cr_Triangle_create(face->parent->uvs[face->vts[0] - 1],
+                              face->parent->uvs[face->vts[1] - 1],
+                              face->parent->uvs[face->vts[2] - 1]);
   case NORMAL:
 
-    return Triangle_create(face->parent->normals[face->vns[0] - 1],
-                           face->parent->normals[face->vns[1] - 1],
-                           face->parent->normals[face->vns[2] - 1]);
+    return cr_Triangle_create(face->parent->normals[face->vns[0] - 1],
+                              face->parent->normals[face->vns[1] - 1],
+                              face->parent->normals[face->vns[2] - 1]);
   default:
-    return Triangle_create(Vec3_create(0, 0, 0), Vec3_create(0, 0, 0),
-                           Vec3_create(0, 0, 0));
+    return cr_Triangle_create(cr_Vec3_create(0, 0, 0), cr_Vec3_create(0, 0, 0),
+                              cr_Vec3_create(0, 0, 0));
   }
 }
-void Face_dealloc(Face *face) {
+void cr_Face_dealloc(cr_Face *face) {
   free(face->vs);
   free(face->vts);
   free(face->vns);
   free(face);
 }
-void Object_dealloc(Object *object) {
+void cr_Object_dealloc(cr_Object *object) {
   free(object->vertices);
   free(object->uvs);
   free(object->normals);
   for (int i = 0; i < object->nf; i++) {
-    Face_dealloc(object->faces[i]);
+    cr_Face_dealloc(object->faces[i]);
   }
   free(object->faces);
   free(object);

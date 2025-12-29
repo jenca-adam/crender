@@ -2,8 +2,8 @@
 #ifndef _DISPLAY_H
 #define _DISPLAY_H
 #include <SDL2/SDL.h>
-#include "texture.h"
-#include "color.h"
+#define cr_STRIP_SYMS
+#include <crender.h>
 typedef struct Display{
 	int width;
 	int height;
@@ -18,7 +18,7 @@ typedef struct Display{
 int initDisplay(int width, int height, int render_width, int render_height, const char *title);
 void cleanupDisplay();
 void setScreenPixel(int i, int j, Vec3 color);
-void updateDisplay(LinearTexture pixels);
+void updateDisplay(Linear_Texture pixels);
 void clearDisplay(Vec3 color);
 int renderTexture(Texture texture);
 extern Display *display;

@@ -1,6 +1,6 @@
-#include "common.h"
+#define cr_STRIP_SYMS
 #include "display.h"
-#include "scene.h"
+#include <crender.h>
 #include <stdio.h>
 #define WIN_WIDTH 800
 #define WIN_HEIGHT 800

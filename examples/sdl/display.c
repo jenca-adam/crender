@@ -61,7 +61,7 @@ void clearDisplay(Vec3 color) {
   SDL_RenderClear(display->renderer);
 }
 
-void updateDisplay(LinearTexture pixels) {
+void updateDisplay(Linear_Texture pixels) {
   SDL_Texture *fbuf = SDL_CreateTexture(
       display->renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING,
       display->render_width, display->render_height);
@@ -84,7 +84,7 @@ int renderTexture(Texture texture) {
     fprintf(stderr, "renderTexture: display not initialised\n");
     return 0;
   }
-  LinearTexture t = Texture_to_linear(texture);
+  Linear_Texture t = Texture_to_linear(texture);
   updateDisplay(t);
   free(t);
   return 1;
