@@ -1,5 +1,5 @@
 #include "display.h"
-extern Display *display = NULL;
+Display *display = NULL;
 void _display_error(char *errmsg) {
   fprintf(stderr, "%s: %s\n", errmsg, SDL_GetError());
 }
@@ -35,9 +35,9 @@ int initDisplay(int width, int height, int render_width, int render_height,
   display->block_height = height / render_height;
   display->window = window;
   display->renderer = renderer;
-  /*display->fbuf = SDL_CreateTexture(
+  display->fbuf = SDL_CreateTexture(
       renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING,
-      display->render_width, display->render_height);*/
+      display->render_width, display->render_height);
   return 1;
 }
 
@@ -50,6 +50,7 @@ void cleanupDisplay() {
     SDL_DestroyRenderer(display->renderer);
   if (display->window)
     SDL_DestroyWindow(display->window);
+
   SDL_DestroyTexture(display->fbuf);
   SDL_Quit();
   free(display);
@@ -60,14 +61,24 @@ void clearDisplay(Vec3 color) {
   SDL_SetRenderDrawColor(display->renderer, color.x, color.y, color.z, 255);
   SDL_RenderClear(display->renderer);
 }
-
+SDL_Point getTextureSize(SDL_Texture *texture) {
+  SDL_Point size;
+  SDL_QueryTexture(texture, NULL, NULL, &size.x, &size.y);
+  return size;
+}
 void updateDisplay(Linear_Texture pixels) {
-  SDL_Texture *fbuf = SDL_CreateTexture(
-      display->renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING,
-      display->render_width, display->render_height);
-  SDL_UpdateTexture(fbuf, NULL, pixels,
+  SDL_Point fbuf_size = getTextureSize(display->fbuf);
+  if (fbuf_size.x != display->render_width ||
+      fbuf_size.y != display->render_height) {
+    SDL_DestroyTexture(display->fbuf);
+    display->fbuf =
+        SDL_CreateTexture(display->renderer, SDL_PIXELFORMAT_RGBA8888,
+                          SDL_TEXTUREACCESS_STREAMING, display->render_width,
+                          display->render_height);
+  }
+  SDL_UpdateTexture(display->fbuf, NULL, pixels,
                     display->render_width * sizeof(uint32_t));
-  SDL_RenderCopy(display->renderer, fbuf, NULL, NULL);
+  SDL_RenderCopy(display->renderer, display->fbuf, NULL, NULL);
   SDL_RenderPresent(display->renderer);
 }
 

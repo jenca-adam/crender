@@ -1,11 +1,11 @@
 #define cr_STRIP_SYMS
 #include "display.h"
 #include <crender.h>
-#include <stdio.h>
 #include <stdbool.h>
+#include <stdio.h>
 #define WIN_WIDTH 800
 #define WIN_HEIGHT 800
-#define RENDER_SAMPLE .5f
+#define RENDER_SAMPLE 1.0f
 #define DEPTH 0
 #define CAM_Z 3
 #define ROTATEY 1
@@ -17,15 +17,57 @@
 #define TY 2
 #define TZ 2
 #define NEAR_PLANE (CAM_Z)
-void usage(void){
-    printf("Commands: \n\
+void usage(void) {
+  printf("-----------------------\n\
+Commands: \n\
 Arrow keys left/right: rotate on the y axis\n\
 Arrow keys up/down: move on the z axis\n\
 w/s: rotate on the x axis\n\
 a/d: rotate on the z axis\n\
+h/l: move on the x axis\n\
+j/k: move on the y axis\n\
 m: switch Phong/Gouraud shading\n\
 n: switch normal map/interpolated normals\n\
-t: swap diffuse texture\n");
+b: switch floor/closest/bilinear texture sampling\n\
+t: swap diffuse texture\n\
+r: reset object transform\n\
+-----------------------\n\
+\n");
+}
+char *join_dirs(char *dirname, char *path) {
+  size_t dlen = strlen(dirname);
+  size_t len = dlen + strlen(path) + 2;
+  char *buffer = malloc(len);
+  if (dirname[dlen - 1] == '/' || path[0] == '/') {
+    snprintf(buffer, len, "%s%s", dirname, path);
+  } else {
+    snprintf(buffer, len, "%s/%s", dirname, path);
+  }
+  return buffer;
+}
+bool load_object_from_dir(char *dirname, Object **object, Texture *diffuse,
+                          Texture *normal_map, Texture *specular_map) {
+  char *object_fname = join_dirs(dirname, "obj.obj");
+  Object *ob = Object_fromOBJ(object_fname);
+  free(object_fname);
+  if (!ob) {
+    return false;
+  }
+  char *diffuse_fname = join_dirs(dirname, "diffuse.ppm");
+  *diffuse = Texture_read(diffuse_fname);
+  free(diffuse_fname);
+  if (!diffuse->m) {
+    Object_dealloc(ob);
+    return false;
+  }
+  *object = ob;
+  char *normal_fname = join_dirs(dirname, "normal.ppm");
+  *normal_map = Texture_read(normal_fname);
+  free(normal_fname);
+  char *specular_fname = join_dirs(dirname, "specular.ppm");
+  *specular_map = Texture_read(specular_fname);
+  free(specular_fname);
+  return true;
 }
 
 int main(int argc, char *argv[]) {
@@ -34,14 +76,15 @@ int main(int argc, char *argv[]) {
   const num cam_z = CAM_Z;
   Vec3 bg = {0, 0, 0};
   if (argc < 2) {
-    fprintf(stderr, "missing at least 1 object directory (e.g. obj/head)\n");
+    fprintf(stderr, "provide object directory (e.g. obj/head)\n");
     return 1;
   }
   char *dirname = argv[1];
-char *dirname2 = argc>=3?argv[2]:dirname;
+  char *dirname2 = argc >= 3 ? argv[2] : dirname;
   Vec3 light_dir = {0, 0, -1};
   SceneSettings settings = {
-      .mode = PHONG,
+      .shading_mode = PHONG,
+      .sampling_mode = FLOOR,
       .render_width = width,
       .render_height = height,
       .render_depth = DEPTH,
@@ -52,17 +95,17 @@ char *dirname2 = argc>=3?argv[2]:dirname;
       .use_normal_map = true,
   };
   Scene scene = Scene_create(settings);
-  Entity main_entity = Entity_create();
-  if (!Entity_load_dir(&main_entity, dirname)) {
+  Object *main_object;
+  Texture main_diffuse, main_normal, main_specular;
+  if (!load_object_from_dir(dirname, &main_object, &main_diffuse, &main_normal,
+                            &main_specular)) {
     return 1;
   }
-  Entity other_entity = Entity_create();
-  if (!Entity_load_dir(&other_entity, dirname2)){
-    return 1;
-  }
-
+  Entity main_entity = Entity_create(main_object);
+  main_entity.ts.diffuse = main_diffuse;
+  main_entity.ts.normal_map = main_normal;
+  main_entity.ts.specular_map = main_specular;
   Scene_add_entity(&scene, &main_entity);
-  Scene_add_entity(&scene, &other_entity);
   if (!initDisplay(WIN_WIDTH, WIN_HEIGHT, width, height, "renderer")) {
     return 1;
   }
@@ -71,10 +114,7 @@ char *dirname2 = argc>=3?argv[2]:dirname;
   int running = 1;
   Vec3 delta_rot = {0, 0, 0};
   Vec3 delta_trans = {0, 0, 0};
-  Texture other_texture = Texture_create(1,1, (Vec3){255,0,0});
-  Texture main_texture = main_entity.ts.diffuse; 
-  Entity_translate_world_space(&other_entity, (Vec3){2, 0, -5});
-  Entity_rotate(&other_entity, (Vec3){0,-M_PI/2,0});
+  Texture other_texture = Texture_create(1, 1, (Vec3){255, 0, 0});
   bool using_other = false;
   uint32_t frame_time = SDL_GetTicks();
   while (running) {
@@ -136,14 +176,24 @@ char *dirname2 = argc>=3?argv[2]:dirname;
           delta_trans.y = TY;
           break;
         case 'm':
-          scene.settings.mode = scene.settings.mode == PHONG ? GOURAUD : PHONG;
+          scene.settings.shading_mode = scene.settings.shading_mode == PHONG ? GOURAUD : PHONG;
           break;
         case 'n':
           scene.settings.use_normal_map = !scene.settings.use_normal_map;
           break;
+        case 'b':
+          scene.settings.sampling_mode = (scene.settings.sampling_mode + 1)%3;
+          break;
         case 't':
           using_other = !using_other;
-          Entity_attach_texture(&main_entity, TextureSetIndex_diffuse, using_other?other_texture:main_texture);
+          Entity_attach_texture(&main_entity, TextureSetIndex_diffuse,
+                                using_other ? other_texture : main_diffuse);
+          break;
+        case 'r':
+          Matrix transform = Matrix_identity(4);
+          Entity_set_transform(&main_entity, transform);
+          Matrix_dealloc(transform);
+          break;
         default:
           break;
         }
@@ -184,10 +234,12 @@ char *dirname2 = argc>=3?argv[2]:dirname;
     clearDisplay(bg);
     updateDisplay(scene.framebuffer);
   }
-  if (!Scene_uses_texture(&scene, other_texture)){
-    Texture_dealloc(other_texture);
-  } // todo: maybe implement an arena ?? that's by far the cleanest solution to all my problems
+  Texture_dealloc(other_texture);
   Entity_dealloc(main_entity);
+  Object_dealloc(main_object);
+  Texture_dealloc(main_diffuse);
+  Texture_dealloc(main_normal);
+  Texture_dealloc(main_specular);
   Scene_dealloc(&scene);
   cleanupDisplay();
   return 0;

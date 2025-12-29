@@ -3,3 +3,5 @@ vgcore*
 *gmon.out*
 *.o
 *renderer
+obj/violin
+obj/bust

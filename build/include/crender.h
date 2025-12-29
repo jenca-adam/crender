@@ -9,6 +9,13 @@ typedef void omp_lock_t;
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#define cr_ABORT(t,s) do {\
+    fprintf(stderr, "%s:%d %s(%s)\n", __FILE__, __LINE__, t,s);\
+    abort();\
+} while (0);
+
+#define cr_UNREACHABLE(s) cr_ABORT("UNREACHABLE", s)
+#define cr_ERROR(s) cr_ABORT("ERROR", s)
 #ifndef cr_EPSILON
 #define cr_EPSILON 1e-2
 #endif
@@ -33,10 +40,15 @@ typedef void omp_lock_t;
 #ifndef cr_ENTITIES_INITIAL_CAPACITY
 #define cr_ENTITIES_INITIAL_CAPACITY 8
 #endif
-typedef enum cr_shading_mode {
-  PHONG = 0,
-  GOURAUD = 1,
-} cr_shading_mode;
+typedef enum cr_ShadingMode {
+  PHONG = 0, //slower, specular highlights
+  GOURAUD = 1, //faster, no specular highlights
+} cr_ShadingMode;
+typedef enum cr_SamplingMode{
+  FLOOR = 0, // worst, fastest
+  CLOSEST = 1, // marginally better and equally marginally slower
+  LINEAR = 2, // best, slowest
+} cr_SamplingMode;
 #ifdef NUM_DOUBLE
 typedef double cr_num;
 #define cr_NUM_FMT "%lf"
@@ -156,6 +168,7 @@ cr_Matrix cr_Matrix_inverse(cr_Matrix matrix);
 cr_Matrix cr_Matrix_translation(cr_Vec3 v);
 cr_Matrix cr_Matrix_rotation(cr_Vec3 v);
 cr_Matrix cr_Matrix_inverse_clean(cr_Matrix matrix);
+cr_Matrix cr_Matrix_clone(cr_Matrix m);
 void cr_Matrix_dealloc(cr_Matrix mat);
 cr_Vec3 cr_Vec3_copy(cr_Vec3 v);
 cr_Vec3 cr_Vec3_transform(cr_Vec3 v, cr_Matrix mat);
@@ -181,18 +194,18 @@ typedef struct cr_Object {
   int nn;
   int nf;
 } cr_Object;
-typedef enum cr_face_tri_type {
+typedef enum cr_FaceTriType {
   VERTEX = 0,
   UV = 1,
   NORMAL = 2,
-} cr_face_tri_type;
+} cr_FaceTriType;
 cr_Object *cr_Object_new();
 void cr_Object_add_vertex(cr_Object *object, cr_Vec3 vertex);
 void cr_Object_add_uv(cr_Object *object, cr_Vec3 uv);
 void cr_Object_add_normal(cr_Object *object, cr_Vec3 normal);
 void cr_Object_add_face(cr_Object *object, cr_Face *face);
 void cr_Object_dealloc(cr_Object *object);
-cr_Object *cr_Object_fromOBJ(char *fn, char *dirname);
+cr_Object *cr_Object_fromOBJ(char *fn);
 
 typedef struct cr_Triangle {
   cr_Vec3 v0;
@@ -207,7 +220,7 @@ cr_Triangle cr_Triangle_transform4(cr_Triangle tri, cr_Matrix transform,
                                    cr_Vec3 *ws);
 cr_Triangle cr_Triangle_create(cr_Vec3 v0, cr_Vec3 v1, cr_Vec3 v2);
 
-cr_Triangle cr_Face_gettri(cr_Face *face, cr_face_tri_type tt);
+bool cr_Face_gettri(cr_Face *face, cr_FaceTriType tt, cr_Triangle *tri);
 void cr_Face_dealloc(cr_Face *face);
 
 typedef struct cr_Texture {
@@ -217,7 +230,7 @@ typedef struct cr_Texture {
 } cr_Texture;
 typedef uint32_t *cr_Linear_Texture;
 cr_Texture cr_Texture_create(int width, int height, cr_Vec3 color);
-cr_Texture cr_Texture_readPPM(char *fn, char *dirname);
+cr_Texture cr_Texture_readPPM(char *fn);
 cr_Texture cr_Texture_readPAM(char *fn);
 cr_Texture cr_Texture_read(char *fn);
 bool cr_Texture_draw_face(cr_Linear_Texture texture, int width, int height,
@@ -227,7 +240,7 @@ bool cr_Texture_draw_face(cr_Linear_Texture texture, int width, int height,
                           cr_Vec3 light_dir, cr_Matrix transform,
                           cr_Matrix world_transform,
                           cr_Matrix inverse_transform, cr_num near_plane,
-                          cr_shading_mode mode);
+                          cr_ShadingMode mode, cr_SamplingMode SamplingMode);
 void cr_Texture_writePPM(cr_Texture texture, char *fn);
 void cr_Texture_dealloc(cr_Texture texture);
 void cr_Texture_dealloc_ref(cr_Texture *texture);
@@ -281,11 +294,11 @@ typedef struct cr_Entity {
   cr_Matrix transform;
   cr_Matrix inverse_transform;
   cr_TextureSet ts;
-  const char *name;
 } cr_Entity;
 
 typedef struct cr_SceneSettings {
-  cr_shading_mode mode;
+  cr_ShadingMode shading_mode;
+  cr_SamplingMode sampling_mode;
   size_t render_width;
   size_t render_height;
   cr_num render_depth;
@@ -316,9 +329,8 @@ typedef struct cr_Scene {
   cr_Matrix inverse_world_transform;
 
 } cr_Scene;
-cr_Entity cr_Entity_create(void);
+cr_Entity cr_Entity_create(cr_Object *ob);
 void cr_Entity_dealloc(cr_Entity e);
-bool cr_Entity_load_dir(cr_Entity *e, char *dirname);
 void cr_Entity_detach_texture(cr_Entity *e, size_t index);
 void cr_Entity_attach_texture(cr_Entity *e, size_t index, cr_Texture texture);
 void cr_Entity_set_transform(cr_Entity *e, cr_Matrix transform);
@@ -356,8 +368,9 @@ bool cr_Scene_uses_texture(cr_Scene *s, cr_Texture t);
 #define clamp cr_clamp
 #define Vec3_ADD_INPLACE cr_Vec3_ADD_INPLACE
 #define Vec3_NEG_INPLACE cr_Vec3_NEG_INPLACE
-#define shading_mode cr_shading_mode
-#define face_tri_type cr_face_tri_type
+#define ShadingMode cr_ShadingMode
+#define FaceTriType cr_FaceTriType
+#define SamplingMode cr_SamplingMode
 #define num cr_num
 #define NUM_FMT cr_NUM_FMT
 #define Linear_Texture cr_Linear_Texture
@@ -416,6 +429,7 @@ bool cr_Scene_uses_texture(cr_Scene *s, cr_Texture t);
 #define Matrix_rotation cr_Matrix_rotation
 #define Matrix_inverse_clean cr_Matrix_inverse_clean
 #define Matrix_dealloc cr_Matrix_dealloc
+#define Matric_clone cr_Matrix_clone
 #define Vec3_copy cr_Vec3_copy
 #define Vec3_transform cr_Vec3_transform
 #define Vec3_transform3 cr_Vec3_transform3
@@ -445,7 +459,6 @@ bool cr_Scene_uses_texture(cr_Scene *s, cr_Texture t);
 #define Texture_to_linear cr_Texture_to_linear
 #define Entity_create cr_Entity_create
 #define Entity_dealloc cr_Entity_dealloc
-#define Entity_load_dir cr_Entity_load_dir
 #define Entity_detach_texture cr_Entity_detach_texture
 #define Entity_attach_texture cr_Entity_attach_texture
 #define Entity_set_transform cr_Entity_set_transform

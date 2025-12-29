@@ -42,16 +42,7 @@ void cr_Texture_writePPM(cr_Texture texture, char *fn) {
   }
   fclose(fp);
 }
-cr_Texture cr_Texture_readPPM(char *fn_raw, char *dirname) {
-  char *fn;
-  if (dirname) {
-    fn = malloc(strlen(fn_raw) + strlen(dirname) + 2);
-    snprintf(fn, strlen(fn_raw) + strlen(dirname) + 2, "%s/%s", dirname,
-             fn_raw);
-  } else {
-    fn = fn_raw;
-  }
-
+cr_Texture cr_Texture_readPPM(char *fn) {
   FILE *fp = fopen(fn, "rb");
   char mode[3];
   int width;
@@ -60,12 +51,8 @@ cr_Texture cr_Texture_readPPM(char *fn_raw, char *dirname) {
   if (!fp) {
     fprintf(stderr, "cr_Texture_readPPM: fopen(%s) failed: %s\n", fn,
             strerror(errno));
-    if (dirname)
-      free(fn);
     return (cr_Texture){0};
   }
-  if (dirname)
-    free(fn);
   if (!fgets(mode, sizeof(mode), fp)) {
     fprintf(stderr, "cr_Texture_readPPM: format error: can't read mode\n");
     return (cr_Texture){0};
@@ -173,7 +160,7 @@ cr_Texture cr_Texture_readPAM(char *fn) {
 }
 cr_Texture cr_Texture_read(char *fn) {
   if (strcmp(fn + strlen(fn) - 4, ".ppm") == 0) {
-    return cr_Texture_readPPM(fn, NULL);
+    return cr_Texture_readPPM(fn);
   } else if (strcmp(fn + strlen(fn) - 4, ".pam") == 0) {
     return cr_Texture_readPAM(fn);
   } else {
@@ -183,10 +170,54 @@ cr_Texture cr_Texture_read(char *fn) {
   }
 }
 
-static inline cr_Vec3 cr_Texture_getuv(const cr_Texture t, cr_Vec3 uv) {
+static inline cr_Vec3 cr_Texture_getuv_CLOSEST(const cr_Texture t, cr_Vec3 uv) {
+  int x = (int)round(fabs(cr_clamp(uv.x, 0.0, 1.0)) * (t.width - 1));
+  int y = (int)round(fabs(cr_clamp((1 - uv.y), 0.0, 1.0)) * (t.height - 1));
+  return t.m[y * t.width + x];
+}
+static inline cr_Vec3 cr_Texture_getuv_FLOOR(const cr_Texture t, cr_Vec3 uv) {
   int x = (int)(fabs(cr_clamp(uv.x, 0.0, 1.0)) * (t.width - 1));
   int y = (int)(fabs(cr_clamp((1 - uv.y), 0.0, 1.0)) * (t.height - 1));
   return t.m[y * t.width + x];
+}
+static inline cr_Vec3 cr_Texture_getuv_LINEAR(const cr_Texture t, cr_Vec3 uv) {
+  cr_num u = cr_clamp(uv.x, 0.0, 1.0);
+  cr_num v = 1.0 - (cr_clamp(uv.y, 0.0, 1.0));
+  cr_num x = u * (t.width - 1);
+  cr_num y = v * (t.height - 1);
+  int x0 = (int)x;
+  int y0 = (int)y;
+  int x1 = (x0 + 1 < t.width) ? x0 + 1 : x0;
+  int y1 = (y0 + 1 < t.height) ? y0 + 1 : y0;
+  cr_num tx = x - x0;
+  cr_num ty = y - y0;
+  const cr_Vec3 *row0 = &t.m[y0 * t.width];
+  const cr_Vec3 *row1 = &t.m[y1 * t.width];
+  cr_Vec3 c00 = row0[x0];
+  cr_Vec3 c10 = row0[x1];
+  cr_Vec3 c01 = row1[x0];
+  cr_Vec3 c11 = row1[x1];
+  cr_num w00 = (1 - tx) * (1 - ty);
+  cr_num w10 = tx * (1 - ty);
+  cr_num w01 = (1 - tx) * ty;
+  cr_num w11 = tx * ty;
+  return (cr_Vec3){c00.x * w00 + c10.x * w10 + c01.x * w01 + c11.x * w11,
+                   c00.y * w00 + c10.y * w10 + c01.y * w01 + c11.y * w11,
+                   c00.z * w00 + c10.z * w10 + c01.z * w01 + c11.z * w11};
+}
+
+static inline cr_Vec3 cr_Texture_getuv(const cr_Texture t, cr_Vec3 uv,
+                                       cr_SamplingMode sampling_mode) {
+  switch (sampling_mode) {
+  case FLOOR:
+    return cr_Texture_getuv_FLOOR(t, uv);
+  case CLOSEST:
+    return cr_Texture_getuv_CLOSEST(t, uv);
+  case LINEAR:
+    return cr_Texture_getuv_LINEAR(t, uv);
+  default:
+    cr_UNREACHABLE("Texture_getuv");
+  }
 }
 static inline cr_Vec3 _interp_correct(cr_Vec3 v0, cr_Vec3 v1, cr_Vec3 v2,
                                       cr_Vec3 b, cr_num w0, cr_num w1,
@@ -220,10 +251,14 @@ bool cr_Texture_draw_face(cr_Linear_Texture texture, int width, int height,
                           cr_Vec3 light_dir, cr_Matrix transform,
                           cr_Matrix world_transform,
                           cr_Matrix inverse_transform, cr_num near_plane,
-                          cr_shading_mode mode) {
+                          cr_ShadingMode mode, cr_SamplingMode sampling_mode) {
   cr_Vec3 l = cr_Vec3_transform_dir(light_dir, inverse_transform);
   cr_Vec3 ldir = cr_Vec3_normalized(l);
-  cr_Triangle raw_tri = cr_Face_gettri(face, VERTEX);
+  bool has_vns = true;
+  cr_Triangle raw_tri, uvs, vns;
+  if (!cr_Face_gettri(face, VERTEX, &raw_tri)) {
+    return false;
+  }
   cr_Triangle world_tri = cr_Triangle_transform(raw_tri, world_transform);
   if (world_tri.v0.z > near_plane || world_tri.v1.z > near_plane ||
       world_tri.v2.z > near_plane) {
@@ -238,8 +273,14 @@ bool cr_Texture_draw_face(cr_Linear_Texture texture, int width, int height,
     return false;
   }
 #endif
-  cr_Triangle uvs = cr_Face_gettri(face, UV);
-  cr_Triangle vns = cr_Face_gettri(face, NORMAL);
+
+  if (!cr_Face_gettri(face, UV, &uvs)) {
+    return false;
+  }
+  if (!cr_Face_gettri(face, NORMAL, &vns)) {
+    has_vns = false;
+    vns = cr_Triangle_create(n, n, n);
+  }
   cr_Vec3 ws;
   cr_Triangle tri = cr_Triangle_transform4(raw_tri, transform, &ws);
   cr_num x0 = tri.v0.x, y0 = tri.v0.y;
@@ -274,7 +315,6 @@ bool cr_Texture_draw_face(cr_Linear_Texture texture, int width, int height,
       continue;
     }
     cr_Vec3 b = bbase;
-    int calc_bary = 0;
     for (int x = minx; x <= maxx; x++) {
       if (x >= tw) {
         break;
@@ -301,13 +341,17 @@ bool cr_Texture_draw_face(cr_Linear_Texture texture, int width, int height,
         zbuffer[zbuffix] = z;
         // cr_Vec3 uv = trinterpolate(uvs, b);
         cr_Vec3 uv = _interp_correct(uvs.v0, uvs.v1, uvs.v2, b, iw0, iw1, iw2);
-        cr_Vec3 color = cr_Texture_getuv(diffuse, uv);
+        cr_Vec3 color = cr_Texture_getuv(diffuse, uv, sampling_mode);
         if (!normal_map.m) {
-          normal = cr_Vec3_neg(
-              _interp_correct(vns.v0, vns.v1, vns.v2, b, iw0, iw1, iw2));
+          if (has_vns) {
+            normal = cr_Vec3_neg(
+                _interp_correct(vns.v0, vns.v1, vns.v2, b, iw0, iw1, iw2));
+          } else {
+            normal = n;
+          }
         } else {
-          normal =
-              (cr_Vec3_normal_from_color(cr_Texture_getuv(normal_map, uv)));
+          normal = (cr_Vec3_normal_from_color(
+              cr_Texture_getuv(normal_map, uv, sampling_mode)));
         }
         cr_num d = cr_Vec3_dot(normal, ldir);
         if (mode == PHONG) { // if there's no specular map,
@@ -315,7 +359,7 @@ bool cr_Texture_draw_face(cr_Linear_Texture texture, int width, int height,
           if (!specular_map.m) {
             specpow = 2;
           } else {
-            specpow = cr_Texture_getuv(specular_map, uv).x;
+            specpow = cr_Texture_getuv(specular_map, uv, sampling_mode).x;
           }
 
           /*cr_Vec3 normal_times_d = cr_Vec3_mul(normal, 2.0 * d);

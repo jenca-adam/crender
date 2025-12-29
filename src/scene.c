@@ -4,22 +4,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-cr_Entity cr_Entity_create() { return (cr_Entity){0}; }
-
-bool cr_Entity_load_dir(cr_Entity *e, char *dirname) {
-  cr_Texture diffuse = cr_Texture_readPPM("diffuse.ppm", dirname);
-  cr_Object *ob = cr_Object_fromOBJ("obj.obj", dirname);
-  if (!ob || !diffuse.m) {
-    return false;
-  }
-  e->name = dirname;
-  e->ob = ob;
-  e->ts.diffuse = diffuse;
-  e->ts.normal_map = cr_Texture_readPPM("normal.ppm", dirname);
-  e->ts.specular_map = cr_Texture_readPPM("specular.ppm", dirname);
-  e->transform = cr_Matrix_identity(4);
-  e->inverse_transform = cr_Matrix_identity(4);
-  return true;
+cr_Entity cr_Entity_create(cr_Object *ob) {
+  cr_Entity entity = {0};
+  entity.ob = ob;
+  entity.transform = cr_Matrix_identity(4);
+  entity.inverse_transform = cr_Matrix_identity(4);
+  return entity;
 }
 
 void cr_Entity_detach_texture(cr_Entity *e, size_t index) {
@@ -43,10 +33,13 @@ bool cr_Entity_uses_texture(cr_Entity *e, cr_Texture texture) {
 }
 
 void cr_Entity_set_transform(cr_Entity *e, cr_Matrix transform) {
+  if (transform.cols != 4 || transform.rows != 4) {
+    return;
+  }
   cr_Matrix inv = cr_Matrix_inverse(transform);
   cr_Matrix_dealloc(e->transform);
   cr_Matrix_dealloc(e->inverse_transform);
-  e->transform = transform;
+  e->transform = cr_Matrix_clone(transform); // avoid double freeing
   e->inverse_transform = inv;
 }
 void cr_Entity_reset_transform(cr_Entity *e) {
@@ -55,6 +48,7 @@ void cr_Entity_reset_transform(cr_Entity *e) {
 void cr_Entity_add_transform(cr_Entity *e, cr_Matrix transform) {
   cr_Matrix new_transform = cr_Matrix_matmul(e->transform, transform);
   cr_Entity_set_transform(e, new_transform);
+  cr_Matrix_dealloc(new_transform);
 }
 void cr_Entity_translate(cr_Entity *e, cr_Vec3 delta) {
   cr_Matrix translation = cr_Matrix_translation(delta);
@@ -136,10 +130,13 @@ bool cr_Scene_uses_texture(cr_Scene *s, cr_Texture t) {
 void cr_Scene_rebuild_transform(cr_Scene *s) {
   cr_SceneSettings settings = s->settings;
   cr_num aspect = (cr_num)settings.render_width / settings.render_height;
+  cr_Matrix_dealloc(s->projection);
   s->projection = cr_Matrix_projection(settings.cam_z, settings.fov, aspect);
+  cr_Matrix_dealloc(s->viewport);
   s->viewport =
       cr_Matrix_viewport(0, 0, settings.render_width, settings.render_height,
                          settings.render_depth);
+  cr_Matrix_dealloc(s->world_transform);
   s->world_transform = cr_Matrix_matmul(s->viewport, s->projection);
 }
 
@@ -192,9 +189,10 @@ void cr_Scene_reset_buffers(cr_Scene *s) {
 static inline bool __cr_SceneSettings_eq(cr_SceneSettings a,
                                          cr_SceneSettings b) {
   return (
-      a.mode == b.mode && a.render_width == b.render_width &&
-      a.render_height == b.render_height && a.render_depth == b.render_depth &&
-      a.cam_z == b.cam_z && a.fov == b.fov && a.near_plane == b.near_plane &&
+      a.shading_mode == b.shading_mode && a.sampling_mode == b.sampling_mode &&
+      a.render_width == b.render_width && a.render_height == b.render_height &&
+      a.render_depth == b.render_depth && a.cam_z == b.cam_z &&
+      a.fov == b.fov && a.near_plane == b.near_plane &&
       a.light_dir.x == b.light_dir.x && a.light_dir.y == b.light_dir.y &&
       a.light_dir.z == b.light_dir.z && a.use_normal_map == b.use_normal_map);
 
@@ -207,7 +205,8 @@ void cr_Scene_render(cr_Scene *s, int num_threads) {
 
   cr_Linear_Texture framebuffer = s->framebuffer;
   cr_Vec3 light_dir = s->settings.light_dir;
-  cr_shading_mode mode = s->settings.mode;
+  cr_ShadingMode mode = s->settings.shading_mode;
+  cr_SamplingMode sampling_mode = s->settings.sampling_mode;
   cr_num near_plane = s->settings.near_plane;
   cr_num *zbuffer = s->zbuffer;
   omp_lock_t *zbuffer_locks = s->zbuffer_locks;
@@ -220,6 +219,9 @@ void cr_Scene_render(cr_Scene *s, int num_threads) {
     cr_Entity entity = *s->entities.items[i];
     cr_Object *ob = entity.ob;
     cr_Texture diffuse = entity.ts.diffuse;
+    if (!diffuse.m) {
+      continue;
+    }
     cr_Texture normal_map =
         use_normal_map ? entity.ts.normal_map : (cr_Texture){0};
     cr_Texture specular_map = entity.ts.specular_map;
@@ -232,19 +234,17 @@ void cr_Scene_render(cr_Scene *s, int num_threads) {
       cr_Texture_draw_face(framebuffer, rw, rh, face, diffuse, normal_map,
                            specular_map, zbuffer, zbuffer_locks, light_dir, t,
                            entity.transform, entity.inverse_transform,
-                           near_plane, mode);
+                           near_plane, mode, sampling_mode);
     }
     cr_Matrix_dealloc(t);
   }
 }
+
 void cr_Entity_dealloc(cr_Entity e) {
-  cr_Object_dealloc(e.ob);
   cr_Matrix_dealloc(e.transform);
   cr_Matrix_dealloc(e.inverse_transform);
-  cr_Texture_dealloc(e.ts.diffuse);
-  cr_Texture_dealloc(e.ts.normal_map);
-  cr_Texture_dealloc(e.ts.specular_map);
 }
+
 void cr_Scene_dealloc(cr_Scene *s) {
   free(s->framebuffer);
   free(s->zbuffer);

@@ -123,27 +123,15 @@ cr_Face *read_face(FILE *fp, cr_Object *obj) {
 
   return face;
 }
-cr_Object *cr_Object_fromOBJ(char *fn_raw, char *dirname) {
+cr_Object *cr_Object_fromOBJ(char *fn) {
 
-  char *fn;
-  if (dirname) {
-    fn = malloc(strlen(fn_raw) + strlen(dirname) + 2);
-    snprintf(fn, strlen(fn_raw) + strlen(dirname) + 2, "%s/%s", dirname,
-             fn_raw);
-  } else {
-    fn = fn_raw;
-  }
   FILE *fp = fopen(fn, "rb");
 
   if (!fp) {
     fprintf(stderr, "cr_Object_fromOBJ: fopen(%s) failed: %s\n", fn,
             strerror(errno));
-    if (dirname)
-      free(fn);
     return NULL;
   }
-  if (dirname)
-    free(fn);
   cr_Object *object = cr_Object_new();
   cr_Vec3 arg;
   cr_Face *farg;
@@ -178,31 +166,49 @@ cr_Object *cr_Object_fromOBJ(char *fn_raw, char *dirname) {
       cr_Object_add_face(object, farg);
     }
   }
+  if (!object->vertices) {
+    cr_ERROR("no vertices defined in object file");
+  }
+  if (!object->uvs) {
+    cr_ERROR("object is not uv-mapped!");
+  }
   free(line_type);
   fclose(fp);
   return object;
 }
 
-cr_Triangle cr_Face_gettri(cr_Face *face, cr_face_tri_type tt) {
+bool cr_Face_gettri(cr_Face *face, cr_FaceTriType tt, cr_Triangle *tri) {
   switch (tt) {
   case VERTEX:
-    return cr_Triangle_create(face->parent->vertices[face->vs[0] - 1],
+    if (!face->parent->vertices) {
+      return false;
+    }
+    *tri = cr_Triangle_create(face->parent->vertices[face->vs[0] - 1],
                               face->parent->vertices[face->vs[1] - 1],
                               face->parent->vertices[face->vs[2] - 1]);
+    break;
 
   case UV:
-    return cr_Triangle_create(face->parent->uvs[face->vts[0] - 1],
+    if (!face->parent->uvs) {
+      return false;
+    }
+
+    *tri = cr_Triangle_create(face->parent->uvs[face->vts[0] - 1],
                               face->parent->uvs[face->vts[1] - 1],
                               face->parent->uvs[face->vts[2] - 1]);
+    break;
   case NORMAL:
-
-    return cr_Triangle_create(face->parent->normals[face->vns[0] - 1],
+    if (!face->parent->normals) {
+      return false;
+    }
+    *tri = cr_Triangle_create(face->parent->normals[face->vns[0] - 1],
                               face->parent->normals[face->vns[1] - 1],
                               face->parent->normals[face->vns[2] - 1]);
+    break;
   default:
-    return cr_Triangle_create(cr_Vec3_create(0, 0, 0), cr_Vec3_create(0, 0, 0),
-                              cr_Vec3_create(0, 0, 0));
+    cr_UNREACHABLE("face_gettri");
   }
+  return true;
 }
 void cr_Face_dealloc(cr_Face *face) {
   free(face->vs);
