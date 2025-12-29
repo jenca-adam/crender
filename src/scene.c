@@ -33,6 +33,15 @@ void cr_Entity_attach_texture(cr_Entity *e, size_t index, cr_Texture texture) {
   e->ts.textures[index] = texture;
 }
 
+bool cr_Entity_uses_texture(cr_Entity *e, cr_Texture texture) {
+  for (size_t i = 0; i < cr_TextureSetIndex_max; i++) {
+    if (e->ts.textures[i].m == texture.m) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void cr_Entity_set_transform(cr_Entity *e, cr_Matrix transform) {
   cr_Matrix inv = cr_Matrix_inverse(transform);
   cr_Matrix_dealloc(e->transform);
@@ -110,11 +119,19 @@ void cr_Scene_add_entity(cr_Scene *s, cr_Entity *e) {
 }
 void cr_Scene_remove_entity(cr_Scene *s, cr_Entity *e) {
   for (size_t i = 0; i < s->entities.count; i++) {
-    if (s->entities.items[i]->name == e->name) {
+    if (s->entities.items[i] == e) {
       s->entities.items[i] = s->entities.items[s->entities.count - 1];
       s->entities.count--;
     }
   }
+}
+bool cr_Scene_uses_texture(cr_Scene *s, cr_Texture t) {
+  for (size_t i = 0; i < s->entities.count; i++) {
+    if (cr_Entity_uses_texture(s->entities.items[i], t)) {
+      return true;
+    }
+  }
+  return false;
 }
 void cr_Scene_rebuild_transform(cr_Scene *s) {
   cr_SceneSettings settings = s->settings;
@@ -237,9 +254,6 @@ void cr_Scene_dealloc(cr_Scene *s) {
   }
   free(s->zbuffer_locks);
 #endif
-  for (size_t i = 0; i < s->entities.count; i++) {
-    cr_Entity_dealloc(*s->entities.items[i]);
-  }
   free(s->entities.items);
   cr_Matrix_dealloc(s->projection);
   cr_Matrix_dealloc(s->viewport);

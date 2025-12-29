@@ -157,6 +157,10 @@ int main(int argc, char *argv[]) {
     clearDisplay(bg);
     updateDisplay(scene.framebuffer);
   }
+  if (!Scene_uses_texture(&scene, other_texture)){
+    Texture_dealloc(other_texture);
+  } // todo: maybe implement an arena ??
+  Entity_dealloc(main_entity);
   Scene_dealloc(&scene);
   cleanupDisplay();
   return 0;

@@ -2,6 +2,7 @@ SINGLETHREAD ?= 0
 PROF ?= 0
 DEBUG ?= 0
 NUM_DOUBLE ?= 0
+O0 ?= 0
 BUILD_DIR = ./build
 LIB_BUILD_DIR = $(BUILD_DIR)/lib
 INCLUDE_BUILD_DIR = $(BUILD_DIR)/include
@@ -10,8 +11,8 @@ INCLUDE_DIR = $(BUILD_DIR)/include
 CC = gcc
 CLANG_FORMAT = clang-format
 
-CRENDER_CFLAGS = -Wall -Wextra -pedantic -O3 -march=native -ffast-math -funroll-loops
-EXAMPLE_CFLAGS = -Wall -Wextra -pedantic -O3 
+CRENDER_CFLAGS = -Wall -Wextra -pedantic  -march=native -ffast-math -funroll-loops
+EXAMPLE_CFLAGS = -Wall -Wextra -pedantic  
 CRENDER_LDLIBS = -lm
 EXAMPLE_LDLIBS = -lm -l:libcrender.a -lSDL2
 CRENDER_DEFS = -DNO_BFCULL
@@ -32,6 +33,13 @@ else
 	CRENDER_LDLIBS += -fopenmp
 	EXAMPLE_LDLIBS += -fopenmp
 endif
+ifeq ($(O0), 1)
+	CRENDER_CFLAGS += -O0
+	EXAMPLE_CFLAGS += -O0
+else
+	CRENDER_CFLAGS += -O3
+	EXAMPLE_CFLAGS += -O3
+endif
 ifeq ($(NUM_DOUBLE),1)
 	CRENDER_DEFS += -DNUM_DOUBLE
 endif
@@ -40,8 +48,8 @@ ifeq ($(PROF),1)
 	EXAMPLE_CFLAGS += -pg
 endif
 ifeq ($(DEBUG),1)
-	CRENDER_FLAGS += -g3
-	EXAMPLE_FLAGS += -g3
+	CRENDER_CFLAGS += -g3
+	EXAMPLE_CFLAGS += -g3
 endif
 
 .PHONY: all clean remake example_sdl crender

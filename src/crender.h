@@ -295,11 +295,13 @@ typedef struct cr_SceneSettings {
   cr_Vec3 light_dir;
   bool use_normal_map;
 } cr_SceneSettings;
+
 typedef struct cr_Entities {
   size_t count;
   size_t capacity;
   cr_Entity **items;
 } cr_Entities;
+
 typedef struct cr_Scene {
   cr_SceneSettings settings;
   cr_SceneSettings __internal_settings_cache;
@@ -315,6 +317,7 @@ typedef struct cr_Scene {
 
 } cr_Scene;
 cr_Entity cr_Entity_create(void);
+void cr_Entity_dealloc(cr_Entity e);
 bool cr_Entity_load_dir(cr_Entity *e, char *dirname);
 void cr_Entity_detach_texture(cr_Entity *e, size_t index);
 void cr_Entity_attach_texture(cr_Entity *e, size_t index, cr_Texture texture);
@@ -338,6 +341,10 @@ void cr_Scene_dealloc(cr_Scene *s);
 void cr_Scene_reset_buffers(cr_Scene *s);
 void cr_Scene_render(cr_Scene *s, int num_threads);
 
+bool cr_Entity_uses_texture(cr_Entity *e, cr_Texture t);
+bool cr_Scene_uses_texture(cr_Scene *s, cr_Texture t);
+  
+  
 // end of the interesting part
 
 #ifdef cr_STRIP_SYMS
@@ -437,6 +444,7 @@ void cr_Scene_render(cr_Scene *s, int num_threads);
 #define Texture_dealloc cr_Texture_dealloc
 #define Texture_to_linear cr_Texture_to_linear
 #define Entity_create cr_Entity_create
+#define Entity_dealloc cr_Entity_dealloc
 #define Entity_load_dir cr_Entity_load_dir
 #define Entity_detach_texture cr_Entity_detach_texture
 #define Entity_attach_texture cr_Entity_attach_texture
@@ -458,5 +466,7 @@ void cr_Scene_render(cr_Scene *s, int num_threads);
 #define Scene_dealloc cr_Scene_dealloc
 #define Scene_reset_buffers cr_Scene_reset_buffers
 #define Scene_render cr_Scene_render
+#define Scene_uses_texture cr_Scene_uses_texture
+#define Entity_uses_texture cr_Entity_uses_texture
 #endif
 #endif

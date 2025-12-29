@@ -69,7 +69,6 @@ void updateDisplay(Linear_Texture pixels) {
                     display->render_width * sizeof(uint32_t));
   SDL_RenderCopy(display->renderer, fbuf, NULL, NULL);
   SDL_RenderPresent(display->renderer);
-  SDL_DestroyTexture(fbuf);
 }
 
 void setScreenPixel(int i, int j, Vec3 color) {
