@@ -13,8 +13,8 @@
 #define ROTATEZ 1
 #define N_THREADS 14
 #define WET_RUN 1
-#define TX 0
-#define TY 0
+#define TX 2
+#define TY 2
 #define TZ 2
 #define NEAR_PLANE (CAM_Z)
 void usage(void){
@@ -34,10 +34,11 @@ int main(int argc, char *argv[]) {
   const num cam_z = CAM_Z;
   Vec3 bg = {0, 0, 0};
   if (argc < 2) {
-    fprintf(stderr, "missing object directory (e.g. obj/head)\n");
+    fprintf(stderr, "missing at least 1 object directory (e.g. obj/head)\n");
     return 1;
   }
-  char *dirname = argv[argc - 1];
+  char *dirname = argv[1];
+char *dirname2 = argc>=3?argv[2]:dirname;
   Vec3 light_dir = {0, 0, -1};
   SceneSettings settings = {
       .mode = PHONG,
@@ -55,9 +56,13 @@ int main(int argc, char *argv[]) {
   if (!Entity_load_dir(&main_entity, dirname)) {
     return 1;
   }
+  Entity other_entity = Entity_create();
+  if (!Entity_load_dir(&other_entity, dirname2)){
+    return 1;
+  }
 
   Scene_add_entity(&scene, &main_entity);
-
+  Scene_add_entity(&scene, &other_entity);
   if (!initDisplay(WIN_WIDTH, WIN_HEIGHT, width, height, "renderer")) {
     return 1;
   }
@@ -68,6 +73,8 @@ int main(int argc, char *argv[]) {
   Vec3 delta_trans = {0, 0, 0};
   Texture other_texture = Texture_create(1,1, (Vec3){255,0,0});
   Texture main_texture = main_entity.ts.diffuse; 
+  Entity_translate_world_space(&other_entity, (Vec3){2, 0, -5});
+  Entity_rotate(&other_entity, (Vec3){0,-M_PI/2,0});
   bool using_other = false;
   uint32_t frame_time = SDL_GetTicks();
   while (running) {
@@ -116,6 +123,18 @@ int main(int argc, char *argv[]) {
         case 'd':
           delta_rot.z = -ROTATEZ;
           break;
+        case 'h':
+          delta_trans.x = -TX;
+          break;
+        case 'l':
+          delta_trans.x = TX;
+          break;
+        case 'j':
+          delta_trans.y = -TY;
+          break;
+        case 'k':
+          delta_trans.y = TY;
+          break;
         case 'm':
           scene.settings.mode = scene.settings.mode == PHONG ? GOURAUD : PHONG;
           break;
@@ -142,6 +161,14 @@ int main(int argc, char *argv[]) {
         case 'd':
           delta_rot.z = 0;
           break;
+        case 'h':
+        case 'l':
+          delta_trans.x = 0;
+          break;
+        case 'j':
+        case 'k':
+          delta_trans.y = 0;
+          break;
         case SDLK_UP:
         case SDLK_DOWN:
           delta_trans.z = 0;
@@ -150,7 +177,7 @@ int main(int argc, char *argv[]) {
         }
       }
     }
-    Entity_rotate(&main_entity, Vec3_mul(delta_rot, dt));
+    Entity_rotate_world_space(&main_entity, Vec3_mul(delta_rot, dt));
     Entity_translate_world_space(&main_entity, Vec3_mul(delta_trans, dt));
     Scene_reset_buffers(&scene);
     Scene_render(&scene, N_THREADS);
@@ -159,7 +186,7 @@ int main(int argc, char *argv[]) {
   }
   if (!Scene_uses_texture(&scene, other_texture)){
     Texture_dealloc(other_texture);
-  } // todo: maybe implement an arena ??
+  } // todo: maybe implement an arena ?? that's by far the cleanest solution to all my problems
   Entity_dealloc(main_entity);
   Scene_dealloc(&scene);
   cleanupDisplay();
