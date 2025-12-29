@@ -344,6 +344,11 @@ bool cr_Texture_draw_face(cr_Linear_Texture texture, int width, int height,
   return true;
 }
 
+void cr_Texture_dealloc_ref(cr_Texture *texture) {
+  if (!texture->m)
+    return;
+  free(texture->m);
+}
 void cr_Texture_dealloc(cr_Texture texture) {
   if (!texture.m)
     return;

@@ -38,11 +38,11 @@ typedef enum cr_shading_mode {
   GOURAUD = 1,
 } cr_shading_mode;
 #ifdef NUM_DOUBLE
-    typedef double cr_num;
-    #define cr_NUM_FMT "%lf"
+typedef double cr_num;
+#define cr_NUM_FMT "%lf"
 #else
-    typedef float cr_num;
-    #define cr_NUM_FMT "%f"
+typedef float cr_num;
+#define cr_NUM_FMT "%f"
 #endif
 typedef struct cr_Vec2 {
   cr_num x;
@@ -230,6 +230,7 @@ bool cr_Texture_draw_face(cr_Linear_Texture texture, int width, int height,
                           cr_shading_mode mode);
 void cr_Texture_writePPM(cr_Texture texture, char *fn);
 void cr_Texture_dealloc(cr_Texture texture);
+void cr_Texture_dealloc_ref(cr_Texture *texture);
 cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture);
 static inline cr_Vec3 cr_trinterpolate(cr_Triangle tri, cr_Vec3 bary) {
   cr_num bx = bary.x, by = bary.y, bz = bary.z;
@@ -260,10 +261,20 @@ static inline cr_num cr_fmax3(cr_num x, cr_num y, cr_num z) {
   return fmax(x, fmax(y, z));
 }
 
-typedef struct cr_TextureSet {
-  cr_Texture diffuse;
-  cr_Texture normal_map;
-  cr_Texture specular_map;
+typedef enum cr_TextureSetIndex {
+  cr_TextureSetIndex_diffuse = 0,
+  cr_TextureSetIndex_normal_map = 1,
+  cr_TextureSetIndex_specular_map = 2,
+  cr_TextureSetIndex_max = 3
+} cr_TextureSetIndex;
+
+typedef union cr_TextureSet {
+  struct {
+    cr_Texture diffuse;
+    cr_Texture normal_map;
+    cr_Texture specular_map;
+  };
+  cr_Texture textures[cr_TextureSetIndex_max];
 } cr_TextureSet;
 typedef struct cr_Entity {
   cr_Object *ob;
@@ -305,6 +316,8 @@ typedef struct cr_Scene {
 } cr_Scene;
 cr_Entity cr_Entity_create(void);
 bool cr_Entity_load_dir(cr_Entity *e, char *dirname);
+void cr_Entity_detach_texture(cr_Entity *e, size_t index);
+void cr_Entity_attach_texture(cr_Entity *e, size_t index, cr_Texture texture);
 void cr_Entity_set_transform(cr_Entity *e, cr_Matrix transform);
 void cr_Entity_reset_transform(cr_Entity *e);
 void cr_Entity_add_transform(cr_Entity *e, cr_Matrix transform);
@@ -350,6 +363,10 @@ void cr_Scene_render(cr_Scene *s, int num_threads);
 #define Triangle cr_Triangle
 #define Texture cr_Texture
 #define TextureSet cr_TextureSet
+#define TextureSetIndex cr_TextureSetIndex
+#define TextureSetIndex_diffuse cr_TextureSetIndex_diffuse
+#define TextureSetIndex_normal_map cr_TextureSetIndex_normal_map
+#define TextureSetIndex_max cr_TextureSetIndex_max
 #define Entity cr_Entity
 #define SceneSettings cr_SceneSettings
 #define Entities cr_Entities
@@ -421,6 +438,8 @@ void cr_Scene_render(cr_Scene *s, int num_threads);
 #define Texture_to_linear cr_Texture_to_linear
 #define Entity_create cr_Entity_create
 #define Entity_load_dir cr_Entity_load_dir
+#define Entity_detach_texture cr_Entity_detach_texture
+#define Entity_attach_texture cr_Entity_attach_texture
 #define Entity_set_transform cr_Entity_set_transform
 #define Entity_reset_transform cr_Entity_reset_transform
 #define Entity_add_transform cr_Entity_add_transform

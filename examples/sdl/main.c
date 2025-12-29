@@ -2,6 +2,7 @@
 #include "display.h"
 #include <crender.h>
 #include <stdio.h>
+#include <stdbool.h>
 #define WIN_WIDTH 800
 #define WIN_HEIGHT 800
 #define RENDER_SAMPLE .5f
@@ -16,6 +17,16 @@
 #define TY 0
 #define TZ 2
 #define NEAR_PLANE (CAM_Z)
+void usage(void){
+    printf("Commands: \n\
+Arrow keys left/right: rotate on the y axis\n\
+Arrow keys up/down: move on the z axis\n\
+w/s: rotate on the x axis\n\
+a/d: rotate on the z axis\n\
+m: switch Phong/Gouraud shading\n\
+n: switch normal map/interpolated normals\n\
+t: swap diffuse texture\n");
+}
 
 int main(int argc, char *argv[]) {
   int width = WIN_WIDTH * RENDER_SAMPLE;
@@ -51,9 +62,13 @@ int main(int argc, char *argv[]) {
     return 1;
   }
   Scene_init(&scene);
+  usage();
   int running = 1;
   Vec3 delta_rot = {0, 0, 0};
   Vec3 delta_trans = {0, 0, 0};
+  Texture other_texture = Texture_create(1,1, (Vec3){255,0,0});
+  Texture main_texture = main_entity.ts.diffuse; 
+  bool using_other = false;
   uint32_t frame_time = SDL_GetTicks();
   while (running) {
     float dt = (SDL_GetTicks() - frame_time) / 1000.0;
@@ -107,6 +122,9 @@ int main(int argc, char *argv[]) {
         case 'n':
           scene.settings.use_normal_map = !scene.settings.use_normal_map;
           break;
+        case 't':
+          using_other = !using_other;
+          Entity_attach_texture(&main_entity, TextureSetIndex_diffuse, using_other?other_texture:main_texture);
         default:
           break;
         }

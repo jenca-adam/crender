@@ -22,6 +22,17 @@ bool cr_Entity_load_dir(cr_Entity *e, char *dirname) {
   return true;
 }
 
+void cr_Entity_detach_texture(cr_Entity *e, size_t index) {
+  assert(index < cr_TextureSetIndex_max);
+  e->ts.textures[index] = (cr_Texture){0};
+}
+
+void cr_Entity_attach_texture(cr_Entity *e, size_t index, cr_Texture texture) {
+  assert(index < cr_TextureSetIndex_max);
+  cr_Entity_detach_texture(e, index);
+  e->ts.textures[index] = texture;
+}
+
 void cr_Entity_set_transform(cr_Entity *e, cr_Matrix transform) {
   cr_Matrix inv = cr_Matrix_inverse(transform);
   cr_Matrix_dealloc(e->transform);
