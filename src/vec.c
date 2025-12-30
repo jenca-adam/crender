@@ -3,7 +3,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-
 cr_Vec3 cr_Vec3_copy(cr_Vec3 v) { return cr_Vec3_create(v.x, v.y, v.z); }
 void cr_Matrix_dealloc(cr_Matrix *matrix) {
   if (!matrix || !matrix->valid)
@@ -44,7 +43,9 @@ cr_Matrix cr_Matrix_clone(cr_Matrix m) {
   return copy;
 }
 cr_Matrix cr_Matrix_matmul(cr_Matrix m1, cr_Matrix m2) {
+
   int rows = m1.rows, cols = m2.cols;
+  cr_ASSERT(rows && cols, "");
   cr_Matrix result = cr_Matrix_empty(rows, cols);
 
   for (int i = 0; i < rows; i++) {

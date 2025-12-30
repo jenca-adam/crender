@@ -1,8 +1,10 @@
+
 SINGLETHREAD ?= 0
 PROF ?= 0
 DEBUG ?= 0
-NUM_DOUBLE ?= 0
+NUM_SIZE ?= float
 O0 ?= 0
+
 BUILD_DIR = ./build
 LIB_BUILD_DIR = $(BUILD_DIR)/lib
 INCLUDE_BUILD_DIR = $(BUILD_DIR)/include
@@ -15,11 +17,12 @@ CRENDER_CFLAGS = -Wall -Wextra -pedantic  -march=native -ffast-math -funroll-loo
 EXAMPLE_CFLAGS = -Wall -Wextra -pedantic  
 CRENDER_LDLIBS = -lm
 EXAMPLE_LDLIBS = -lm -l:libcrender.a -lSDL2
-CRENDER_DEFS = -DNO_BFCULL
 
 INCLUDES = -I/usr/include 
 
-CRENDER_SRC_DIR = $(SRC_DIR)/vec.c  $(SRC_DIR)/texture.c $(SRC_DIR)/obj.c $(SRC_DIR)/tri.c $(SRC_DIR)/scene.c
+CRENDER_CFG_IN = $(SRC_DIR)/crender_cfg.h
+CRENDER_CFG = $(INCLUDE_DIR)/crender_cfg.h
+CRENDER_SRC_DIR = $(SRC_DIR)/vec.c  $(SRC_DIR)/texture.c $(SRC_DIR)/obj.c $(SRC_DIR)/tri.c $(SRC_DIR)/scene.c $(SRC_DIR)/abi_tag.c
 CRENDER_OBJ = $(CRENDER_SRC_DIR:.c=.o)
 CRENDER_HDR = $(INCLUDE_DIR)/crender.h
 CRENDER_HDR_IN = $(SRC_DIR)/crender.h
@@ -27,12 +30,7 @@ CRENDER_DYNLIB = $(LIB_BUILD_DIR)/libcrender.so
 CRENDER_STLIB = $(LIB_BUILD_DIR)/libcrender.a
 EXAMPLE_SDL = examples/sdl/renderer
 EXAMPLE_SDL_SRC_DIR = examples/sdl/main.c examples/sdl/display.c
-ifeq ($(SINGLETHREAD),1)
-	CRENDER_DEFS += -DNO_MULTITHREAD
-else
-	CRENDER_LDLIBS += -fopenmp
-	EXAMPLE_LDLIBS += -fopenmp
-endif
+
 ifeq ($(O0), 1)
 	CRENDER_CFLAGS += -O0
 	EXAMPLE_CFLAGS += -O0
@@ -40,8 +38,9 @@ else
 	CRENDER_CFLAGS += -O3
 	EXAMPLE_CFLAGS += -O3
 endif
-ifeq ($(NUM_DOUBLE),1)
-	CRENDER_DEFS += -DNUM_DOUBLE
+ifeq ($(SINGLETHREAD),0)
+	CRENDER_LDLIBS += -fopenmp
+	EXAMPLE_LDLIBS += -fopenmp
 endif
 ifeq ($(PROF),1)
 	CRENDER_CFLAGS += -pg
@@ -54,11 +53,22 @@ endif
 
 .PHONY: all clean remake example_sdl crender
 all: crender example_sdl
-
-crender: $(CRENDER_HDR) $(CRENDER_DYNLIB) $(CRENDER_STLIB)
+_FORCE:
+crender: $(CRENDER_CFG_IN) $(CRENDER_HDR) $(CRENDER_DYNLIB) $(CRENDER_STLIB)
 	@cp $(CRENDER_HDR_IN) $(CRENDER_HDR)
 	$(MAKE) oclean
-
+$(CRENDER_CFG_IN): _FORCE
+	echo "#ifndef _CRENDER_CFG_H" > $@
+	echo "#define _CRENDER_CFG_H" >> $@
+	echo "#define CR_CFG_NO_BFCULL 1" >> $@
+ifeq ($(NUM_SIZE),double)
+	echo "#define CR_CFG_NUM_DOUBLE 1" >> $@
+endif
+ifeq ($(SINGLETHREAD),1)
+	echo "#define CR_CFG_NO_MULTITHREAD 1" >> $@
+endif
+	echo "#endif" >> $@
+	cp $@ $(CRENDER_CFG)
 $(CRENDER_HDR):
 	@mkdir -p $(INCLUDE_DIR)
 	$(CLANG_FORMAT) -i $(CRENDER_HDR_IN)

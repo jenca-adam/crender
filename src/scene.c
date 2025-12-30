@@ -1,11 +1,10 @@
 #include "crender.h"
-#include <assert.h>
 #include <float.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 cr_Entity cr_Entity_create(cr_Object *ob) {
-  cr_Entity entity = {0};
+  cr_REQUIRE_INIT cr_Entity entity = {0};
   entity.ob = ob;
   entity.transform = cr_Matrix_identity(4);
   entity.inverse_transform = cr_Matrix_identity(4);
@@ -14,12 +13,12 @@ cr_Entity cr_Entity_create(cr_Object *ob) {
 }
 
 void cr_Entity_detach_texture(cr_Entity *e, size_t index) {
-  assert(index < cr_TextureSetIndex_max);
+  cr_ASSERT(index < cr_TextureSetIndex_max, "");
   e->ts.textures[index] = NULL;
 }
 
 void cr_Entity_attach_texture(cr_Entity *e, size_t index, cr_Texture *texture) {
-  assert(index < cr_TextureSetIndex_max);
+  cr_ASSERT(index < cr_TextureSetIndex_max, "");
   cr_Entity_detach_texture(e, index);
   e->ts.textures[index] = texture;
 }
@@ -88,7 +87,7 @@ cr_Matrix cr_Entity_get_world_space_transform(cr_Entity *e,
   return n;
 }
 cr_Scene cr_Scene_create(cr_SceneSettings settings) {
-  cr_Scene sc = {0};
+  cr_REQUIRE_INIT cr_Scene sc = {0};
   sc.settings = settings;
   sc.__internal_settings_cache.render_width = 0;
   sc.__internal_settings_cache.render_height = 0;
@@ -96,6 +95,8 @@ cr_Scene cr_Scene_create(cr_SceneSettings settings) {
   sc.zbuffer = NULL;
   sc.zbuffer_locks = NULL;
   sc.valid = true;
+  sc.world_transform = cr_Matrix_identity(4);
+  sc.inverse_world_transform = cr_Matrix_identity(4);
   return sc;
 }
 
@@ -157,16 +158,16 @@ int cr_Scene_resize(cr_Scene *s, size_t new_width, size_t new_height) {
   if (s->framebuffer)
     free(s->framebuffer);
   s->framebuffer = calloc(res, sizeof(*s->framebuffer));
-  assert(s->framebuffer != NULL);
+  cr_ASSERT(s->framebuffer != NULL, "");
   if (s->zbuffer)
     free(s->zbuffer);
   cr_num *zbuffer = malloc(res * sizeof(*s->zbuffer));
-  assert(zbuffer != NULL);
+  cr_ASSERT(zbuffer != NULL, "");
   for (size_t i = 0; i < res; i++) {
     zbuffer[i] = -FLT_MAX;
   }
   s->zbuffer = zbuffer;
-#ifndef NO_MULTITHREAD
+#if !CR_CFG_NO_MULTITHREAD
   if (s->zbuffer_locks) {
     for (size_t i = 0; i < old_res; i++) {
       omp_destroy_lock(&s->zbuffer_locks[i]);
@@ -174,7 +175,7 @@ int cr_Scene_resize(cr_Scene *s, size_t new_width, size_t new_height) {
     free(s->zbuffer_locks);
   }
   s->zbuffer_locks = malloc(res * sizeof(*s->zbuffer_locks));
-  assert(s->zbuffer_locks != NULL);
+  cr_ASSERT(s->zbuffer_locks != NULL, "");
   for (size_t i = 0; i < res; i++) {
     omp_init_lock(&s->zbuffer_locks[i]);
   }
@@ -206,6 +207,7 @@ _select_draw_face_function(cr_ShadingMode shading_mode,
   _cr_Texture_draw_face_SELECT
 }
 void cr_Scene_render(cr_Scene *s, int num_threads) {
+  cr_REQUIRE_INIT;
   if (!__cr_SceneSettings_eq(s->settings, s->__internal_settings_cache)) {
     cr_Scene_update_settings(s);
   }
@@ -219,7 +221,7 @@ void cr_Scene_render(cr_Scene *s, int num_threads) {
   omp_lock_t *zbuffer_locks = s->zbuffer_locks;
   cr_num rw = s->settings.render_width, rh = s->settings.render_height;
   bool use_normal_map = s->settings.use_normal_map;
-#ifndef NO_MULTITHREAD
+#if !CR_CFG_NO_MULTITHREAD
   omp_set_num_threads(num_threads);
 #endif
   for (size_t i = 0; i < s->entities.count; i++) {
@@ -237,7 +239,7 @@ void cr_Scene_render(cr_Scene *s, int num_threads) {
     cr_Texture *specular_map =
         entity.ts.specular_map->valid ? entity.ts.specular_map : NULL;
     cr_Matrix t = cr_Matrix_matmul(s->world_transform, entity.transform);
-#ifndef NO_MULTITHREAD
+#if !CR_CFG_NO_MULTITHREAD
 #pragma omp parallel for schedule(cr_SCHEDULE)
 #endif
     for (int fi = 0; fi < ob->nf; fi++) {
@@ -264,7 +266,7 @@ void cr_Scene_dealloc(cr_Scene *s) {
     return;
   free(s->framebuffer);
   free(s->zbuffer);
-#ifndef NO_MULTITHREAD
+#if !CR_CFG_NO_MULTITHREAD
   for (size_t i = 0; i < s->buffer_size; i++) {
     omp_destroy_lock(&s->zbuffer_locks[i]);
   }

@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 cr_Texture cr_Texture_alloc(int width, int height) {
-  cr_Texture texture;
+  cr_REQUIRE_INIT cr_Texture texture;
   texture.width = width;
   texture.height = height;
   texture.m = malloc(sizeof(cr_Vec3) * width * height);
@@ -268,16 +268,7 @@ cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture) {
   return t;
 }
 // I LOVE C
-#ifdef NO_BFCULL
-#define _HAS_BFCULL 0
-#else
-#define _HAS_BFCULL 1
-#endif
-#ifdef NO_MULTITHREAD
-#define _HAS_MULTITHREAD 0
-#else
-#define _HAS_MULTITHREAD 1
-#endif
+
 #define _cr_Texture_shader_PHONG(SAMPLING_MODE, ...)                           \
   if (!specular_map) {                                                         \
     specpow = 2;                                                               \
@@ -299,6 +290,7 @@ cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture) {
 #define _cr_Texture_draw_face_IMPL(SHADING_MODE, SAMPLING_MODE,                \
                                    HAS_NORMAL_MAP)                             \
   _cr_Texture_draw_face_DECL(SHADING_MODE, SAMPLING_MODE, HAS_NORMAL_MAP) {    \
+    (void)zbuffer_locks;                                                       \
     cr_Vec3 l = cr_Vec3_transform_dir(light_dir, inverse_transform);           \
     cr_Vec3 ldir = cr_Vec3_normalized(l);                                      \
     bool has_vns = true;                                                       \
@@ -312,7 +304,7 @@ cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture) {
       return false;                                                            \
     }                                                                          \
     cr_Vec3 n;                                                                 \
-    if (_HAS_BFCULL) { /* _HAS_BFCULL is known at compile time, this will get  \
+    if (!CR_CFG_NO_BFCULL) { /*  known at compile time, this will get          \
                           inlined*/                                            \
       n = cr_Vec3_normalized(                                                  \
           cr_Vec3_cross(cr_Vec3_sub(raw_tri.v2, raw_tri.v0),                   \
@@ -381,11 +373,10 @@ cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture) {
         cr_num iz = iw0 * b.x + iw1 * b.y + iw2 * b.z;                         \
         cr_num z = iz;                                                         \
         int zbuffix = x + y * tw;                                              \
-        omp_lock_t *lock;                                                      \
-        if (_HAS_MULTITHREAD) {                                                \
-          lock = &zbuffer_locks[zbuffix];                                      \
-          omp_set_lock(lock);                                                  \
-        }                                                                      \
+        CR_IFOMP(omp_lock_t * lock);                                           \
+        CR_IFOMP(lock = &zbuffer_locks[zbuffix]);                              \
+        CR_IFOMP(omp_set_lock(lock));                                          \
+                                                                               \
         if (zbuffer[zbuffix] < z) {                                            \
           cr_num spec, specpow;                                                \
           cr_Vec3 normal;                                                      \
@@ -407,9 +398,7 @@ cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture) {
           cr_num d = cr_Vec3_dot(normal, ldir);                                \
           _cr_Texture_shader_##SHADING_MODE(SAMPLING_MODE);                    \
         }                                                                      \
-        if (_HAS_MULTITHREAD) {                                                \
-          omp_unset_lock(lock);                                                \
-        }                                                                      \
+        CR_IFOMP(omp_unset_lock(lock));                                        \
         cr_Vec3_ADD_INPLACE(b, deltax);                                        \
       }                                                                        \
       cr_Vec3_ADD_INPLACE(bbase, deltay);                                      \

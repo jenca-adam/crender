@@ -6,7 +6,7 @@
 #include <string.h>
 
 cr_Object *cr_Object_new() {
-  cr_Object *object = malloc(sizeof(cr_Object));
+  cr_REQUIRE_INIT cr_Object *object = malloc(sizeof(cr_Object));
   object->vertices = NULL;
   object->uvs = NULL;
   object->normals = NULL;

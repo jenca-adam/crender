@@ -71,6 +71,7 @@ bool load_object_from_dir(char *dirname, Object **object, Texture *diffuse,
 }
 
 int main(int argc, char *argv[]) {
+  INIT_CRENDER();
   int width = WIN_WIDTH * RENDER_SAMPLE;
   int height = WIN_HEIGHT * RENDER_SAMPLE;
   const num cam_z = CAM_Z;

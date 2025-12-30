@@ -1,22 +1,45 @@
 #ifndef _CRENDER_H
 #define _CRENDER_H
+#include "crender_cfg.h"
 #include <math.h>
-#ifndef NO_MULTITHREAD
-#include <omp.h>
-#else
-typedef void omp_lock_t;
-#endif
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#ifndef CR_CFG_NUM_DOUBLE
+#define CR_CFG_NUM_DOUBLE 0
+#endif
+#ifndef CR_CFG_NO_MULTITHREAD
+#define CR_CFG_NO_MULTITHREAD 0
+#endif
+#ifndef CR_CFG_NO_BFCULL
+#define CR_CFG_NO_BFCULL 0
+#endif
+#if CR_CFG_NO_MULTITHREAD
+#define CR_IFOMP(B)  
+typedef void omp_lock_t;
+#else
+#include <omp.h>
+#define CR_IFOMP(B) B
+#endif
+#if CR_CFG_NUM_DOUBLE
+typedef double cr_num;
+#define cr_NUM_FMT "%lf"
+#else
+typedef float cr_num;
+#define cr_NUM_FMT "%f"
+#endif
+
 #define cr_ABORT(t, fmt, ...) \
     do { \
-        fprintf(stderr, "%s:%d [%s] " fmt "\n", __FILE__, __LINE__, t, ##__VA_ARGS__); \
+        fprintf(stderr, "%s:%d [%s]" fmt "\n", __FILE__, __LINE__, t, ##__VA_ARGS__); \
         abort(); \
     } while (0)
 
-#define cr_UNREACHABLE(fmt, ...) cr_ABORT("UNREACHABLE", fmt, ##__VA_ARGS__)
-#define cr_ERROR(s, ...) cr_ABORT("ERROR", s, ##__VA_ARGS__)
+#define cr_UNREACHABLE(fmt, ...) cr_ABORT("Unreachable", fmt, ##__VA_ARGS__)
+#define cr_ERROR(fmt, ...) cr_ABORT("Error", fmt, ##__VA_ARGS__)
+#define cr_ASSERT(a, fmt, ...) if (!(a)) cr_ABORT("Assertion `"#a"` failed", fmt, ##__VA_ARGS__);  
 #ifndef cr_EPSILON
 #define cr_EPSILON 1e-2
 #endif
@@ -112,6 +135,11 @@ typedef void omp_lock_t;
 #define _cr_Texture_draw_face_SELECT                                           \
   switch (shading_mode) { _cr_Texture_draw_face_SHADING_CASES }                \
   return false;
+#define CR_CFG_ABI_TAG ((CR_CFG_NUM_DOUBLE)|(CR_CFG_NO_MULTITHREAD<<1)) 
+#define cr_INIT_CRENDER(...)  cr_ASSERT(_cr_abi_tag==CR_CFG_ABI_TAG, ": please recompile libcrender with correct crender_cfg.h!"); cr_crender_initted=true;
+#define cr_REQUIRE_INIT  cr_ASSERT(cr_crender_initted, ": crender not initted! use the macro cr_INIT_CRENDER().");
+extern int _cr_abi_tag;
+extern bool cr_crender_initted;
 typedef enum cr_ShadingMode {
   PHONG = 0,   // slower, specular highlights
   GOURAUD = 1, // faster, no specular highlights
@@ -121,13 +149,7 @@ typedef enum cr_SamplingMode {
   CLOSEST = 1, // marginally better and equally marginally slower
   LINEAR = 2,  // best, slowest
 } cr_SamplingMode;
-#ifdef NUM_DOUBLE
-typedef double cr_num;
-#define cr_NUM_FMT "%lf"
-#else
-typedef float cr_num;
-#define cr_NUM_FMT "%f"
-#endif
+
 typedef struct cr_Vec2 {
   cr_num x;
   cr_num y;
@@ -434,6 +456,11 @@ _cr_Texture_draw_face_FORALL(_cr_Texture_draw_face_DECLH)
 #define AMBIENT cr_AMBIENT
 #define SCHEDULE cr_SCHEDULE
 #define ENTITIES_INITIAL_CAPACITY cr_ENTITIES_INITIAL_CAPACITY
+#define ABORT cr_ABORT
+#define ERROR cr_ERROR
+#define UNREACHABLE cr_UNREACHABLE
+#define ASSERT cr_ASSERT
+#define INIT_CRENDER cr_INIT_CRENDER
 #define clamp cr_clamp
 #define Vec3_ADD_INPLACE cr_Vec3_ADD_INPLACE
 #define Vec3_NEG_INPLACE cr_Vec3_NEG_INPLACE
