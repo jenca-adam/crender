@@ -9,10 +9,11 @@ typedef void omp_lock_t;
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#define cr_ABORT(t,s) do {\
-    fprintf(stderr, "%s:%d %s(%s)\n", __FILE__, __LINE__, t,s);\
-    abort();\
-} while (0);
+#define cr_ABORT(t, s)                                                         \
+  do {                                                                         \
+    fprintf(stderr, "%s:%d %s(%s)\n", __FILE__, __LINE__, t, s);               \
+    abort();                                                                   \
+  } while (0);
 
 #define cr_UNREACHABLE(s) cr_ABORT("UNREACHABLE", s)
 #define cr_ERROR(s) cr_ABORT("ERROR", s)
@@ -40,14 +41,85 @@ typedef void omp_lock_t;
 #ifndef cr_ENTITIES_INITIAL_CAPACITY
 #define cr_ENTITIES_INITIAL_CAPACITY 8
 #endif
+#define _cr_Texture_draw_face_NAME(SHADING_MODE, SAMPLING_MODE,                \
+                                   HAS_NORMAL_MAP)                             \
+  _cr_Texture_draw_face_##SHADING_MODE##_##SAMPLING_MODE##_##HAS_NORMAL_MAP
+#define _cr_Texture_draw_face_ARGS                                             \
+  (cr_Linear_Texture texture, int width, int height, cr_Face *face,            \
+   cr_Texture *diffuse, cr_Texture *normal_map, cr_Texture *specular_map,      \
+   cr_num *zbuffer, omp_lock_t *zbuffer_locks, cr_Vec3 light_dir,              \
+   cr_Matrix transform, cr_Matrix world_transform,                             \
+   cr_Matrix inverse_transform, cr_num near_plane)
+
+#define _cr_Texture_draw_face_DECL(SHADING_MODE, SAMPLING_MODE,                \
+                                   HAS_NORMAL_MAP)                             \
+  bool _cr_Texture_draw_face_NAME(SHADING_MODE, SAMPLING_MODE, HAS_NORMAL_MAP) \
+      _cr_Texture_draw_face_ARGS
+#define _cr_Texture_draw_face_DECLH(...)                                       \
+  _cr_Texture_draw_face_DECL(__VA_ARGS__);
+#define _cr_Texture_draw_face_FORALL1(XMACRO)                                  \
+  XMACRO(GOURAUD)                                                              \
+  XMACRO(PHONG)
+#define _cr_Texture_draw_face_FORALL2(XMACRO)                                  \
+  XMACRO(FLOOR)                                                                \
+  XMACRO(CLOSEST)                                                              \
+  XMACRO(LINEAR)
+#define _cr_Texture_draw_face_FORALL3(XMACRO)                                  \
+  XMACRO(0)                                                                    \
+  XMACRO(1)
+#define _cr_Texture_draw_face_FORALL(                                          \
+    XMACRO) /* too lazy to make a cartesian product*/                          \
+  XMACRO(GOURAUD, FLOOR, 0)                                                    \
+  XMACRO(GOURAUD, FLOOR, 1)                                                    \
+  XMACRO(GOURAUD, CLOSEST, 0)                                                  \
+  XMACRO(GOURAUD, CLOSEST, 1)                                                  \
+  XMACRO(GOURAUD, LINEAR, 0)                                                   \
+  XMACRO(GOURAUD, LINEAR, 1)                                                   \
+  XMACRO(PHONG, FLOOR, 0)                                                      \
+  XMACRO(PHONG, FLOOR, 1)                                                      \
+  XMACRO(PHONG, CLOSEST, 0)                                                    \
+  XMACRO(PHONG, CLOSEST, 1)                                                    \
+  XMACRO(PHONG, LINEAR, 0)                                                     \
+  XMACRO(PHONG, LINEAR, 1)
+#define _cr_Texture_draw_face_HANDLE(SHADING, SAMPLING, NORMAL)                \
+  return _cr_Texture_draw_face_NAME(SHADING, SAMPLING, NORMAL);
+#define _cr_Texture_draw_face_NORMAL_CASES(SHADING, SAMPLING)                  \
+  if (has_normal_map) {                                                        \
+    _cr_Texture_draw_face_HANDLE(SHADING, SAMPLING, 1)                         \
+  } else {                                                                     \
+    _cr_Texture_draw_face_HANDLE(SHADING, SAMPLING, 0)                         \
+  }
+
+#define _cr_Texture_draw_face_SAMPLING_CASES(SHADING)                          \
+  case FLOOR:                                                                  \
+    _cr_Texture_draw_face_NORMAL_CASES(SHADING, FLOOR);                        \
+    break;                                                                     \
+  case CLOSEST:                                                                \
+    _cr_Texture_draw_face_NORMAL_CASES(SHADING, CLOSEST);                      \
+    break;                                                                     \
+  case LINEAR:                                                                 \
+    _cr_Texture_draw_face_NORMAL_CASES(SHADING, LINEAR);                       \
+    break;
+
+#define _cr_Texture_draw_face_SHADING_CASES                                    \
+  case GOURAUD:                                                                \
+    switch (sampling_mode) { _cr_Texture_draw_face_SAMPLING_CASES(GOURAUD) }   \
+    break;                                                                     \
+  case PHONG:                                                                  \
+    switch (sampling_mode) { _cr_Texture_draw_face_SAMPLING_CASES(PHONG) }     \
+    break;
+
+#define _cr_Texture_draw_face_SELECT                                           \
+  switch (shading_mode) { _cr_Texture_draw_face_SHADING_CASES }                \
+  return false;
 typedef enum cr_ShadingMode {
-  PHONG = 0, //slower, specular highlights
-  GOURAUD = 1, //faster, no specular highlights
+  PHONG = 0,   // slower, specular highlights
+  GOURAUD = 1, // faster, no specular highlights
 } cr_ShadingMode;
-typedef enum cr_SamplingMode{
-  FLOOR = 0, // worst, fastest
+typedef enum cr_SamplingMode {
+  FLOOR = 0,   // worst, fastest
   CLOSEST = 1, // marginally better and equally marginally slower
-  LINEAR = 2, // best, slowest
+  LINEAR = 2,  // best, slowest
 } cr_SamplingMode;
 #ifdef NUM_DOUBLE
 typedef double cr_num;
@@ -70,9 +142,10 @@ typedef struct cr_Vec4 {
 } cr_Vec4;
 
 typedef struct cr_Matrix {
+  cr_num **m;
   int rows;
   int cols;
-  cr_num **m;
+  bool valid;
 } cr_Matrix;
 static inline cr_Vec2 cr_Vec2_create(cr_num x, cr_num y) {
   return (cr_Vec2){x, y};
@@ -169,7 +242,7 @@ cr_Matrix cr_Matrix_translation(cr_Vec3 v);
 cr_Matrix cr_Matrix_rotation(cr_Vec3 v);
 cr_Matrix cr_Matrix_inverse_clean(cr_Matrix matrix);
 cr_Matrix cr_Matrix_clone(cr_Matrix m);
-void cr_Matrix_dealloc(cr_Matrix mat);
+void cr_Matrix_dealloc(cr_Matrix *mat);
 cr_Vec3 cr_Vec3_copy(cr_Vec3 v);
 cr_Vec3 cr_Vec3_transform(cr_Vec3 v, cr_Matrix mat);
 cr_Vec3 cr_Vec3_transform3(cr_Vec3 v, cr_Matrix mat);
@@ -193,6 +266,7 @@ typedef struct cr_Object {
   int nuv;
   int nn;
   int nf;
+  bool valid;
 } cr_Object;
 typedef enum cr_FaceTriType {
   VERTEX = 0,
@@ -224,26 +298,18 @@ bool cr_Face_gettri(cr_Face *face, cr_FaceTriType tt, cr_Triangle *tri);
 void cr_Face_dealloc(cr_Face *face);
 
 typedef struct cr_Texture {
+  cr_Vec3 *m;
   int width;
   int height;
-  cr_Vec3 *m;
+  bool valid;
 } cr_Texture;
 typedef uint32_t *cr_Linear_Texture;
 cr_Texture cr_Texture_create(int width, int height, cr_Vec3 color);
 cr_Texture cr_Texture_readPPM(char *fn);
 cr_Texture cr_Texture_readPAM(char *fn);
 cr_Texture cr_Texture_read(char *fn);
-bool cr_Texture_draw_face(cr_Linear_Texture texture, int width, int height,
-                          cr_Face *face, cr_Texture diffuse,
-                          cr_Texture normal_map, cr_Texture specular_map,
-                          cr_num *zbuffer, omp_lock_t *zbuffer_locks,
-                          cr_Vec3 light_dir, cr_Matrix transform,
-                          cr_Matrix world_transform,
-                          cr_Matrix inverse_transform, cr_num near_plane,
-                          cr_ShadingMode mode, cr_SamplingMode SamplingMode);
 void cr_Texture_writePPM(cr_Texture texture, char *fn);
-void cr_Texture_dealloc(cr_Texture texture);
-void cr_Texture_dealloc_ref(cr_Texture *texture);
+void cr_Texture_dealloc(cr_Texture *texture);
 cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture);
 static inline cr_Vec3 cr_trinterpolate(cr_Triangle tri, cr_Vec3 bary) {
   cr_num bx = bary.x, by = bary.y, bz = bary.z;
@@ -283,17 +349,18 @@ typedef enum cr_TextureSetIndex {
 
 typedef union cr_TextureSet {
   struct {
-    cr_Texture diffuse;
-    cr_Texture normal_map;
-    cr_Texture specular_map;
+    cr_Texture *diffuse;
+    cr_Texture *normal_map;
+    cr_Texture *specular_map;
   };
-  cr_Texture textures[cr_TextureSetIndex_max];
+  cr_Texture *textures[cr_TextureSetIndex_max];
 } cr_TextureSet;
 typedef struct cr_Entity {
   cr_Object *ob;
   cr_Matrix transform;
   cr_Matrix inverse_transform;
   cr_TextureSet ts;
+  bool valid;
 } cr_Entity;
 
 typedef struct cr_SceneSettings {
@@ -327,12 +394,12 @@ typedef struct cr_Scene {
   cr_Matrix viewport;
   cr_Matrix world_transform;
   cr_Matrix inverse_world_transform;
-
+  bool valid;
 } cr_Scene;
 cr_Entity cr_Entity_create(cr_Object *ob);
-void cr_Entity_dealloc(cr_Entity e);
+void cr_Entity_dealloc(cr_Entity *e);
 void cr_Entity_detach_texture(cr_Entity *e, size_t index);
-void cr_Entity_attach_texture(cr_Entity *e, size_t index, cr_Texture texture);
+void cr_Entity_attach_texture(cr_Entity *e, size_t index, cr_Texture *texture);
 void cr_Entity_set_transform(cr_Entity *e, cr_Matrix transform);
 void cr_Entity_reset_transform(cr_Entity *e);
 void cr_Entity_add_transform(cr_Entity *e, cr_Matrix transform);
@@ -353,10 +420,12 @@ void cr_Scene_dealloc(cr_Scene *s);
 void cr_Scene_reset_buffers(cr_Scene *s);
 void cr_Scene_render(cr_Scene *s, int num_threads);
 
-bool cr_Entity_uses_texture(cr_Entity *e, cr_Texture t);
-bool cr_Scene_uses_texture(cr_Scene *s, cr_Texture t);
-  
-  
+bool cr_Entity_uses_texture(cr_Entity *e, cr_Texture *t);
+bool cr_Scene_uses_texture(cr_Scene *s, cr_Texture *t);
+
+typedef bool(*cr_Texture_draw_face_tp) _cr_Texture_draw_face_ARGS;
+_cr_Texture_draw_face_FORALL(_cr_Texture_draw_face_DECLH)
+
 // end of the interesting part
 
 #ifdef cr_STRIP_SYMS
@@ -453,7 +522,6 @@ bool cr_Scene_uses_texture(cr_Scene *s, cr_Texture t);
 #define Texture_readPPM cr_Texture_readPPM
 #define Texture_readPAM cr_Texture_readPAM
 #define Texture_read cr_Texture_read
-#define Texture_draw_face cr_Texture_draw_face
 #define Texture_writePPM cr_Texture_writePPM
 #define Texture_dealloc cr_Texture_dealloc
 #define Texture_to_linear cr_Texture_to_linear

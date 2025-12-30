@@ -9,6 +9,7 @@ cr_Texture cr_Texture_alloc(int width, int height) {
   texture.width = width;
   texture.height = height;
   texture.m = malloc(sizeof(cr_Vec3) * width * height);
+  texture.valid = true;
   if (!texture.m) {
     perror("cr_Texture_alloc: malloc() failed");
   }
@@ -84,7 +85,7 @@ cr_Texture cr_Texture_readPPM(char *fn) {
 
     if (feof(fp)) {
       fprintf(stderr, "cr_Texture_readPPM: format error: EOF\n");
-      cr_Texture_dealloc(texture);
+      cr_Texture_dealloc(&texture);
       return (cr_Texture){0};
     }
     texture.m[i] = cr_Vec3_create(rgb[0], rgb[1], rgb[2]);
@@ -150,7 +151,7 @@ cr_Texture cr_Texture_readPAM(char *fn) {
     fread(&rgb, 1, 4, fp);
 
     if (feof(fp)) {
-      cr_Texture_dealloc(texture);
+      cr_Texture_dealloc(&texture);
       perror("cr_Texture_readPAM: format error");
       abort();
     }
@@ -170,29 +171,34 @@ cr_Texture cr_Texture_read(char *fn) {
   }
 }
 
-static inline cr_Vec3 cr_Texture_getuv_CLOSEST(const cr_Texture t, cr_Vec3 uv) {
-  int x = (int)round(fabs(cr_clamp(uv.x, 0.0, 1.0)) * (t.width - 1));
-  int y = (int)round(fabs(cr_clamp((1 - uv.y), 0.0, 1.0)) * (t.height - 1));
-  return t.m[y * t.width + x];
+static inline cr_Vec3 cr_Texture_getuv_CLOSEST(const cr_Texture *restrict t,
+                                               cr_Vec3 uv) {
+  int x = (int)((cr_clamp(uv.x, 0.0, 1.0)) * (t->width - 1) + .5f);
+  int y = (int)((cr_clamp((1 - uv.y), 0.0, 1.0)) * (t->height - 1) + .5f);
+  return t->m[y * t->width + x];
 }
-static inline cr_Vec3 cr_Texture_getuv_FLOOR(const cr_Texture t, cr_Vec3 uv) {
-  int x = (int)(fabs(cr_clamp(uv.x, 0.0, 1.0)) * (t.width - 1));
-  int y = (int)(fabs(cr_clamp((1 - uv.y), 0.0, 1.0)) * (t.height - 1));
-  return t.m[y * t.width + x];
+
+static inline cr_Vec3 cr_Texture_getuv_FLOOR(const cr_Texture *restrict t,
+                                             cr_Vec3 uv) {
+  int x = (int)((cr_clamp(uv.x, 0.0, 1.0)) * (t->width - 1));
+  int y = (int)((cr_clamp((1 - uv.y), 0.0, 1.0)) * (t->height - 1));
+  return t->m[y * t->width + x];
 }
-static inline cr_Vec3 cr_Texture_getuv_LINEAR(const cr_Texture t, cr_Vec3 uv) {
+static inline cr_Vec3 cr_Texture_getuv_LINEAR(const cr_Texture *restrict t,
+                                              cr_Vec3 uv) {
+  size_t w = t->width, h = t->height;
   cr_num u = cr_clamp(uv.x, 0.0, 1.0);
   cr_num v = 1.0 - (cr_clamp(uv.y, 0.0, 1.0));
-  cr_num x = u * (t.width - 1);
-  cr_num y = v * (t.height - 1);
+  cr_num x = u * (w - 1);
+  cr_num y = v * (h - 1);
   int x0 = (int)x;
   int y0 = (int)y;
-  int x1 = (x0 + 1 < t.width) ? x0 + 1 : x0;
-  int y1 = (y0 + 1 < t.height) ? y0 + 1 : y0;
+  int x1 = x0 + (x0 + 1 < w);
+  int y1 = y0 + (y0 + 1 < h);
   cr_num tx = x - x0;
   cr_num ty = y - y0;
-  const cr_Vec3 *row0 = &t.m[y0 * t.width];
-  const cr_Vec3 *row1 = &t.m[y1 * t.width];
+  const cr_Vec3 *restrict row0 = &t->m[y0 * w];
+  const cr_Vec3 *restrict row1 = &t->m[y1 * w];
   cr_Vec3 c00 = row0[x0];
   cr_Vec3 c10 = row0[x1];
   cr_Vec3 c01 = row1[x0];
@@ -206,7 +212,7 @@ static inline cr_Vec3 cr_Texture_getuv_LINEAR(const cr_Texture t, cr_Vec3 uv) {
                    c00.z * w00 + c10.z * w10 + c01.z * w01 + c11.z * w11};
 }
 
-static inline cr_Vec3 cr_Texture_getuv(const cr_Texture t, cr_Vec3 uv,
+static inline cr_Vec3 cr_Texture_getuv(const cr_Texture *t, cr_Vec3 uv,
                                        cr_SamplingMode sampling_mode) {
   switch (sampling_mode) {
   case FLOOR:
@@ -244,159 +250,15 @@ cr_num apow(cr_num x, uint8_t n) {
 
   return r;
 }
-bool cr_Texture_draw_face(cr_Linear_Texture texture, int width, int height,
-                          cr_Face *face, cr_Texture diffuse,
-                          cr_Texture normal_map, cr_Texture specular_map,
-                          cr_num *zbuffer, omp_lock_t *zbuffer_locks,
-                          cr_Vec3 light_dir, cr_Matrix transform,
-                          cr_Matrix world_transform,
-                          cr_Matrix inverse_transform, cr_num near_plane,
-                          cr_ShadingMode mode, cr_SamplingMode sampling_mode) {
-  cr_Vec3 l = cr_Vec3_transform_dir(light_dir, inverse_transform);
-  cr_Vec3 ldir = cr_Vec3_normalized(l);
-  bool has_vns = true;
-  cr_Triangle raw_tri, uvs, vns;
-  if (!cr_Face_gettri(face, VERTEX, &raw_tri)) {
-    return false;
-  }
-  cr_Triangle world_tri = cr_Triangle_transform(raw_tri, world_transform);
-  if (world_tri.v0.z > near_plane || world_tri.v1.z > near_plane ||
-      world_tri.v2.z > near_plane) {
-    return false;
-  }
-  cr_Vec3 n =
-      cr_Vec3_normalized(cr_Vec3_cross(cr_Vec3_sub(raw_tri.v2, raw_tri.v0),
-                                       cr_Vec3_sub(raw_tri.v1, raw_tri.v0)));
-  cr_num intensity = cr_Vec3_dot(n, ldir);
-#ifndef NO_BFCULL
-  if (intensity < -cr_EPSILON) {
-    return false;
-  }
-#endif
-
-  if (!cr_Face_gettri(face, UV, &uvs)) {
-    return false;
-  }
-  if (!cr_Face_gettri(face, NORMAL, &vns)) {
-    has_vns = false;
-    vns = cr_Triangle_create(n, n, n);
-  }
-  cr_Vec3 ws;
-  cr_Triangle tri = cr_Triangle_transform4(raw_tri, transform, &ws);
-  cr_num x0 = tri.v0.x, y0 = tri.v0.y;
-  cr_num x1 = tri.v1.x, y1 = tri.v1.y;
-  cr_num x2 = tri.v2.x, y2 = tri.v2.y;
-  cr_num bary_denom = 1 / ((x2 - x0) * (y1 - y0) - (x1 - x0) * (y2 - y0));
-  int minx = fmax(0, cr_fmin3(x0, x1, x2));
-  int maxx = fmin(width, cr_fmax3(x0, x1, x2));
-  int miny = fmax(0, cr_fmin3(y0, y1, y2));
-  int maxy = fmin(height, cr_fmax3(y0, y1, y2));
-  cr_num iw0 = 1.0f / ws.x;
-  cr_num iw1 = 1.0f / ws.y;
-  cr_num iw2 = 1.0f / ws.z;
-  cr_num tw = width;
-  cr_num th = height;
-  if (maxx < 0 || maxy < 0 || minx > tw || miny > th)
-    return false;
-  cr_Vec3 bbase =
-      cr_barycentric(tri.v0, tri.v1, tri.v2, minx, miny, bary_denom);
-  cr_Vec3 deltax = cr_Vec3_sub(
-      cr_barycentric(tri.v0, tri.v1, tri.v2, minx + 1, miny, bary_denom),
-      bbase);
-  cr_Vec3 deltay = cr_Vec3_sub(
-      cr_barycentric(tri.v0, tri.v1, tri.v2, minx, miny + 1, bary_denom),
-      bbase);
-  for (int y = miny; y <= maxy; y++) {
-    if (y >= th) {
-      break;
-    }
-    if (y < 0) {
-      cr_Vec3_ADD_INPLACE(bbase, deltay);
-      continue;
-    }
-    cr_Vec3 b = bbase;
-    for (int x = minx; x <= maxx; x++) {
-      if (x >= tw) {
-        break;
-      }
-      if (x < 0) {
-        cr_Vec3_ADD_INPLACE(b, deltax);
-        continue;
-      }
-      if (b.x < -cr_EPSILON || b.y < -cr_EPSILON || b.z < -cr_EPSILON) {
-        cr_Vec3_ADD_INPLACE(b, deltax);
-        continue;
-      }
-      cr_num iz = iw0 * b.x + iw1 * b.y + iw2 * b.z;
-      cr_num z = iz;
-      // cr_num z = z0 * b.x + z1 * b.y + z2 * b.z;
-      int zbuffix = x + y * tw;
-#ifndef NO_MULTITHREAD
-      omp_lock_t *lock = &zbuffer_locks[zbuffix];
-      omp_set_lock(lock);
-#endif
-      if (zbuffer[zbuffix] < z) {
-        cr_num spec, specpow;
-        cr_Vec3 normal;
-        zbuffer[zbuffix] = z;
-        // cr_Vec3 uv = trinterpolate(uvs, b);
-        cr_Vec3 uv = _interp_correct(uvs.v0, uvs.v1, uvs.v2, b, iw0, iw1, iw2);
-        cr_Vec3 color = cr_Texture_getuv(diffuse, uv, sampling_mode);
-        if (!normal_map.m) {
-          if (has_vns) {
-            normal = cr_Vec3_neg(
-                _interp_correct(vns.v0, vns.v1, vns.v2, b, iw0, iw1, iw2));
-          } else {
-            normal = n;
-          }
-        } else {
-          normal = (cr_Vec3_normal_from_color(
-              cr_Texture_getuv(normal_map, uv, sampling_mode)));
-        }
-        cr_num d = cr_Vec3_dot(normal, ldir);
-        if (mode == PHONG) { // if there's no specular map,
-                             // phong shading is useless(?)
-          if (!specular_map.m) {
-            specpow = 2;
-          } else {
-            specpow = cr_Texture_getuv(specular_map, uv, sampling_mode).x;
-          }
-
-          /*cr_Vec3 normal_times_d = cr_Vec3_mul(normal, 2.0 * d);
-
-          cr_Vec3 reflected = (cr_Vec3_sub(normal_times_d, light_dir));
-          cr_Vec3 r_normalized = cr_Vec3_normalized(reflected);
-          */
-          spec = apow(fmax(d, 0.0), specpow);
-          intensity = d + spec * .6;
-          if (texture) {
-            texture[(int)(tw * (th - y - 1) + x)] =
-                cr_Vec3_phong(color, intensity, 0, 255);
-          }
-        } else {
-          texture[(int)(tw * (th - y - 1) + x)] =
-              cr_Vec3_pack_color(cr_Vec3_mul(color, fmax(d, 0.0)));
-        }
-      }
-#ifndef NO_MULTITHREAD
-      omp_unset_lock(lock);
-#endif
-      cr_Vec3_ADD_INPLACE(b, deltax);
-    }
-    cr_Vec3_ADD_INPLACE(bbase, deltay);
-  }
-  return true;
-}
-
 void cr_Texture_dealloc_ref(cr_Texture *texture) {
   if (!texture->m)
     return;
   free(texture->m);
 }
-void cr_Texture_dealloc(cr_Texture texture) {
-  if (!texture.m)
+void cr_Texture_dealloc(cr_Texture *texture) {
+  if (!texture || !texture->valid)
     return;
-  free(texture.m);
+  free(texture->m);
 }
 cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture) {
   cr_Linear_Texture t = malloc(texture.width * texture.height * sizeof(*t));
@@ -405,3 +267,154 @@ cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture) {
   }
   return t;
 }
+// I LOVE C
+#ifdef NO_BFCULL
+#define _HAS_BFCULL 0
+#else
+#define _HAS_BFCULL 1
+#endif
+#ifdef NO_MULTITHREAD
+#define _HAS_MULTITHREAD 0
+#else
+#define _HAS_MULTITHREAD 1
+#endif
+#define _cr_Texture_shader_PHONG(SAMPLING_MODE, ...)                           \
+  if (!specular_map) {                                                         \
+    specpow = 2;                                                               \
+  } else {                                                                     \
+    specpow = cr_Texture_getuv_##SAMPLING_MODE(specular_map, uv).x;            \
+  }                                                                            \
+  spec = apow(fmax(d, 0.0), specpow);                                          \
+  cr_num intensity = d + spec * .6;                                            \
+  texture[(int)(tw * (th - y - 1) + x)] =                                      \
+      cr_Vec3_phong(color, intensity, 0, 255);
+
+#define _cr_Texture_shader_GOURAUD(...)                                        \
+  (void)spec;                                                                  \
+  (void)specpow;                                                               \
+  (void)specular_map;                                                          \
+  texture[(int)(tw * (th - y - 1) + x)] =                                      \
+      cr_Vec3_pack_color(cr_Vec3_mul(color, fmax(d, 0.0)));
+
+#define _cr_Texture_draw_face_IMPL(SHADING_MODE, SAMPLING_MODE,                \
+                                   HAS_NORMAL_MAP)                             \
+  _cr_Texture_draw_face_DECL(SHADING_MODE, SAMPLING_MODE, HAS_NORMAL_MAP) {    \
+    cr_Vec3 l = cr_Vec3_transform_dir(light_dir, inverse_transform);           \
+    cr_Vec3 ldir = cr_Vec3_normalized(l);                                      \
+    bool has_vns = true;                                                       \
+    cr_Triangle raw_tri, uvs, vns;                                             \
+    if (!cr_Face_gettri(face, VERTEX, &raw_tri)) {                             \
+      return false;                                                            \
+    }                                                                          \
+    cr_Triangle world_tri = cr_Triangle_transform(raw_tri, world_transform);   \
+    if (world_tri.v0.z > near_plane || world_tri.v1.z > near_plane ||          \
+        world_tri.v2.z > near_plane) {                                         \
+      return false;                                                            \
+    }                                                                          \
+    cr_Vec3 n;                                                                 \
+    if (_HAS_BFCULL) { /* _HAS_BFCULL is known at compile time, this will get  \
+                          inlined*/                                            \
+      n = cr_Vec3_normalized(                                                  \
+          cr_Vec3_cross(cr_Vec3_sub(raw_tri.v2, raw_tri.v0),                   \
+                        cr_Vec3_sub(raw_tri.v1, raw_tri.v0)));                 \
+      cr_num intensity = cr_Vec3_dot(n, ldir);                                 \
+      if (intensity < -cr_EPSILON) {                                           \
+        return false;                                                          \
+      }                                                                        \
+    }                                                                          \
+    if (!cr_Face_gettri(face, UV, &uvs)) {                                     \
+      return false;                                                            \
+    }                                                                          \
+    if (!cr_Face_gettri(face, NORMAL, &vns) && !normal_map) {                  \
+      n = cr_Vec3_normalized(                                                  \
+          cr_Vec3_cross(cr_Vec3_sub(raw_tri.v2, raw_tri.v0),                   \
+                        cr_Vec3_sub(raw_tri.v1, raw_tri.v0)));                 \
+      has_vns = false;                                                         \
+      vns = cr_Triangle_create(n, n, n);                                       \
+    }                                                                          \
+    cr_Vec3 ws;                                                                \
+    cr_Triangle tri = cr_Triangle_transform4(raw_tri, transform, &ws);         \
+    cr_num x0 = tri.v0.x, y0 = tri.v0.y;                                       \
+    cr_num x1 = tri.v1.x, y1 = tri.v1.y;                                       \
+    cr_num x2 = tri.v2.x, y2 = tri.v2.y;                                       \
+    cr_num bary_denom = 1 / ((x2 - x0) * (y1 - y0) - (x1 - x0) * (y2 - y0));   \
+    int minx = fmax(0, cr_fmin3(x0, x1, x2));                                  \
+    int maxx = fmin(width, cr_fmax3(x0, x1, x2));                              \
+    int miny = fmax(0, cr_fmin3(y0, y1, y2));                                  \
+    int maxy = fmin(height, cr_fmax3(y0, y1, y2));                             \
+    cr_num iw0 = 1.0f / ws.x;                                                  \
+    cr_num iw1 = 1.0f / ws.y;                                                  \
+    cr_num iw2 = 1.0f / ws.z;                                                  \
+    cr_num tw = width;                                                         \
+    cr_num th = height;                                                        \
+    if (maxx < 0 || maxy < 0 || minx > tw || miny > th)                        \
+      return false;                                                            \
+    cr_Vec3 bbase =                                                            \
+        cr_barycentric(tri.v0, tri.v1, tri.v2, minx, miny, bary_denom);        \
+    cr_Vec3 deltax = cr_Vec3_sub(                                              \
+        cr_barycentric(tri.v0, tri.v1, tri.v2, minx + 1, miny, bary_denom),    \
+        bbase);                                                                \
+    cr_Vec3 deltay = cr_Vec3_sub(                                              \
+        cr_barycentric(tri.v0, tri.v1, tri.v2, minx, miny + 1, bary_denom),    \
+        bbase);                                                                \
+    for (int y = miny; y <= maxy; y++) {                                       \
+      if (y >= th) {                                                           \
+        break;                                                                 \
+      }                                                                        \
+      if (y < 0) {                                                             \
+        cr_Vec3_ADD_INPLACE(bbase, deltay);                                    \
+        continue;                                                              \
+      }                                                                        \
+      cr_Vec3 b = bbase;                                                       \
+      for (int x = minx; x <= maxx; x++) {                                     \
+        if (x >= tw) {                                                         \
+          break;                                                               \
+        }                                                                      \
+        if (x < 0) {                                                           \
+          cr_Vec3_ADD_INPLACE(b, deltax);                                      \
+          continue;                                                            \
+        }                                                                      \
+        if (b.x < -cr_EPSILON || b.y < -cr_EPSILON || b.z < -cr_EPSILON) {     \
+          cr_Vec3_ADD_INPLACE(b, deltax);                                      \
+          continue;                                                            \
+        }                                                                      \
+        cr_num iz = iw0 * b.x + iw1 * b.y + iw2 * b.z;                         \
+        cr_num z = iz;                                                         \
+        int zbuffix = x + y * tw;                                              \
+        omp_lock_t *lock;                                                      \
+        if (_HAS_MULTITHREAD) {                                                \
+          lock = &zbuffer_locks[zbuffix];                                      \
+          omp_set_lock(lock);                                                  \
+        }                                                                      \
+        if (zbuffer[zbuffix] < z) {                                            \
+          cr_num spec, specpow;                                                \
+          cr_Vec3 normal;                                                      \
+          zbuffer[zbuffix] = z;                                                \
+          cr_Vec3 uv =                                                         \
+              _interp_correct(uvs.v0, uvs.v1, uvs.v2, b, iw0, iw1, iw2);       \
+          cr_Vec3 color = cr_Texture_getuv_##SAMPLING_MODE(diffuse, uv);       \
+          if (!HAS_NORMAL_MAP) {                                               \
+            if (has_vns) {                                                     \
+              normal = cr_Vec3_neg(                                            \
+                  _interp_correct(vns.v0, vns.v1, vns.v2, b, iw0, iw1, iw2));  \
+            } else {                                                           \
+              normal = n;                                                      \
+            }                                                                  \
+          } else {                                                             \
+            normal = (cr_Vec3_normal_from_color(                               \
+                cr_Texture_getuv_##SAMPLING_MODE(normal_map, uv)));            \
+          }                                                                    \
+          cr_num d = cr_Vec3_dot(normal, ldir);                                \
+          _cr_Texture_shader_##SHADING_MODE(SAMPLING_MODE);                    \
+        }                                                                      \
+        if (_HAS_MULTITHREAD) {                                                \
+          omp_unset_lock(lock);                                                \
+        }                                                                      \
+        cr_Vec3_ADD_INPLACE(b, deltax);                                        \
+      }                                                                        \
+      cr_Vec3_ADD_INPLACE(bbase, deltay);                                      \
+    }                                                                          \
+    return true;                                                               \
+  }
+
+_cr_Texture_draw_face_FORALL(_cr_Texture_draw_face_IMPL)

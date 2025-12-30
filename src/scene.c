@@ -9,23 +9,24 @@ cr_Entity cr_Entity_create(cr_Object *ob) {
   entity.ob = ob;
   entity.transform = cr_Matrix_identity(4);
   entity.inverse_transform = cr_Matrix_identity(4);
+  entity.valid = true;
   return entity;
 }
 
 void cr_Entity_detach_texture(cr_Entity *e, size_t index) {
   assert(index < cr_TextureSetIndex_max);
-  e->ts.textures[index] = (cr_Texture){0};
+  e->ts.textures[index] = NULL;
 }
 
-void cr_Entity_attach_texture(cr_Entity *e, size_t index, cr_Texture texture) {
+void cr_Entity_attach_texture(cr_Entity *e, size_t index, cr_Texture *texture) {
   assert(index < cr_TextureSetIndex_max);
   cr_Entity_detach_texture(e, index);
   e->ts.textures[index] = texture;
 }
 
-bool cr_Entity_uses_texture(cr_Entity *e, cr_Texture texture) {
+bool cr_Entity_uses_texture(cr_Entity *e, cr_Texture *texture) {
   for (size_t i = 0; i < cr_TextureSetIndex_max; i++) {
-    if (e->ts.textures[i].m == texture.m) {
+    if (e->ts.textures[i]->m == texture->m) {
       return true;
     }
   }
@@ -37,8 +38,8 @@ void cr_Entity_set_transform(cr_Entity *e, cr_Matrix transform) {
     return;
   }
   cr_Matrix inv = cr_Matrix_inverse(transform);
-  cr_Matrix_dealloc(e->transform);
-  cr_Matrix_dealloc(e->inverse_transform);
+  cr_Matrix_dealloc(&e->transform);
+  cr_Matrix_dealloc(&e->inverse_transform);
   e->transform = cr_Matrix_clone(transform); // avoid double freeing
   e->inverse_transform = inv;
 }
@@ -48,12 +49,12 @@ void cr_Entity_reset_transform(cr_Entity *e) {
 void cr_Entity_add_transform(cr_Entity *e, cr_Matrix transform) {
   cr_Matrix new_transform = cr_Matrix_matmul(e->transform, transform);
   cr_Entity_set_transform(e, new_transform);
-  cr_Matrix_dealloc(new_transform);
+  cr_Matrix_dealloc(&new_transform);
 }
 void cr_Entity_translate(cr_Entity *e, cr_Vec3 delta) {
   cr_Matrix translation = cr_Matrix_translation(delta);
   cr_Entity_add_transform(e, translation);
-  cr_Matrix_dealloc(translation);
+  cr_Matrix_dealloc(&translation);
 }
 
 void cr_Entity_translate_world_space(cr_Entity *e, cr_Vec3 delta) {
@@ -61,29 +62,29 @@ void cr_Entity_translate_world_space(cr_Entity *e, cr_Vec3 delta) {
   cr_Matrix ws_translation =
       cr_Entity_get_world_space_transform(e, translation);
   cr_Entity_add_transform(e, ws_translation);
-  cr_Matrix_dealloc(translation);
-  cr_Matrix_dealloc(ws_translation);
+  cr_Matrix_dealloc(&translation);
+  cr_Matrix_dealloc(&ws_translation);
 }
 
 void cr_Entity_rotate(cr_Entity *e, cr_Vec3 thetas) {
   cr_Matrix rotation = cr_Matrix_rotation(thetas);
   cr_Entity_add_transform(e, rotation);
-  cr_Matrix_dealloc(rotation);
+  cr_Matrix_dealloc(&rotation);
 }
 
 void cr_Entity_rotate_world_space(cr_Entity *e, cr_Vec3 thetas) {
   cr_Matrix rotation = cr_Matrix_rotation(thetas);
   cr_Matrix ws_rotation = cr_Entity_get_world_space_transform(e, rotation);
   cr_Entity_add_transform(e, rotation);
-  cr_Matrix_dealloc(rotation);
-  cr_Matrix_dealloc(ws_rotation);
+  cr_Matrix_dealloc(&rotation);
+  cr_Matrix_dealloc(&ws_rotation);
 }
 
 cr_Matrix cr_Entity_get_world_space_transform(cr_Entity *e,
                                               cr_Matrix transform) {
   cr_Matrix m = cr_Matrix_matmul(e->inverse_transform, transform);
   cr_Matrix n = cr_Matrix_matmul(m, e->transform);
-  cr_Matrix_dealloc(m);
+  cr_Matrix_dealloc(&m);
   return n;
 }
 cr_Scene cr_Scene_create(cr_SceneSettings settings) {
@@ -94,6 +95,7 @@ cr_Scene cr_Scene_create(cr_SceneSettings settings) {
   sc.framebuffer = NULL;
   sc.zbuffer = NULL;
   sc.zbuffer_locks = NULL;
+  sc.valid = true;
   return sc;
 }
 
@@ -119,7 +121,7 @@ void cr_Scene_remove_entity(cr_Scene *s, cr_Entity *e) {
     }
   }
 }
-bool cr_Scene_uses_texture(cr_Scene *s, cr_Texture t) {
+bool cr_Scene_uses_texture(cr_Scene *s, cr_Texture *t) {
   for (size_t i = 0; i < s->entities.count; i++) {
     if (cr_Entity_uses_texture(s->entities.items[i], t)) {
       return true;
@@ -130,13 +132,13 @@ bool cr_Scene_uses_texture(cr_Scene *s, cr_Texture t) {
 void cr_Scene_rebuild_transform(cr_Scene *s) {
   cr_SceneSettings settings = s->settings;
   cr_num aspect = (cr_num)settings.render_width / settings.render_height;
-  cr_Matrix_dealloc(s->projection);
+  cr_Matrix_dealloc(&s->projection);
   s->projection = cr_Matrix_projection(settings.cam_z, settings.fov, aspect);
-  cr_Matrix_dealloc(s->viewport);
+  cr_Matrix_dealloc(&s->viewport);
   s->viewport =
       cr_Matrix_viewport(0, 0, settings.render_width, settings.render_height,
                          settings.render_depth);
-  cr_Matrix_dealloc(s->world_transform);
+  cr_Matrix_dealloc(&s->world_transform);
   s->world_transform = cr_Matrix_matmul(s->viewport, s->projection);
 }
 
@@ -198,6 +200,11 @@ static inline bool __cr_SceneSettings_eq(cr_SceneSettings a,
 
   ;
 }
+cr_Texture_draw_face_tp
+_select_draw_face_function(cr_ShadingMode shading_mode,
+                           cr_SamplingMode sampling_mode, bool has_normal_map) {
+  _cr_Texture_draw_face_SELECT
+}
 void cr_Scene_render(cr_Scene *s, int num_threads) {
   if (!__cr_SceneSettings_eq(s->settings, s->__internal_settings_cache)) {
     cr_Scene_update_settings(s);
@@ -205,7 +212,7 @@ void cr_Scene_render(cr_Scene *s, int num_threads) {
 
   cr_Linear_Texture framebuffer = s->framebuffer;
   cr_Vec3 light_dir = s->settings.light_dir;
-  cr_ShadingMode mode = s->settings.shading_mode;
+  cr_ShadingMode shading_mode = s->settings.shading_mode;
   cr_SamplingMode sampling_mode = s->settings.sampling_mode;
   cr_num near_plane = s->settings.near_plane;
   cr_num *zbuffer = s->zbuffer;
@@ -218,13 +225,17 @@ void cr_Scene_render(cr_Scene *s, int num_threads) {
   for (size_t i = 0; i < s->entities.count; i++) {
     cr_Entity entity = *s->entities.items[i];
     cr_Object *ob = entity.ob;
-    cr_Texture diffuse = entity.ts.diffuse;
-    if (!diffuse.m) {
+    cr_Texture *diffuse = entity.ts.diffuse;
+    if (!diffuse) {
       continue;
     }
-    cr_Texture normal_map =
-        use_normal_map ? entity.ts.normal_map : (cr_Texture){0};
-    cr_Texture specular_map = entity.ts.specular_map;
+    cr_Texture *normal_map = use_normal_map && entity.ts.normal_map->valid
+                                 ? entity.ts.normal_map
+                                 : NULL;
+    cr_Texture_draw_face_tp cr_Texture_draw_face =
+        _select_draw_face_function(shading_mode, sampling_mode, !!normal_map);
+    cr_Texture *specular_map =
+        entity.ts.specular_map->valid ? entity.ts.specular_map : NULL;
     cr_Matrix t = cr_Matrix_matmul(s->world_transform, entity.transform);
 #ifndef NO_MULTITHREAD
 #pragma omp parallel for schedule(cr_SCHEDULE)
@@ -234,18 +245,23 @@ void cr_Scene_render(cr_Scene *s, int num_threads) {
       cr_Texture_draw_face(framebuffer, rw, rh, face, diffuse, normal_map,
                            specular_map, zbuffer, zbuffer_locks, light_dir, t,
                            entity.transform, entity.inverse_transform,
-                           near_plane, mode, sampling_mode);
+                           near_plane);
     }
-    cr_Matrix_dealloc(t);
+    cr_Matrix_dealloc(&t);
   }
 }
 
-void cr_Entity_dealloc(cr_Entity e) {
-  cr_Matrix_dealloc(e.transform);
-  cr_Matrix_dealloc(e.inverse_transform);
+void cr_Entity_dealloc(cr_Entity *e) {
+  if (!e || !e->valid)
+    return;
+  cr_Matrix_dealloc(&e->transform);
+  cr_Matrix_dealloc(&e->inverse_transform);
+  *e = (cr_Entity){0};
 }
 
 void cr_Scene_dealloc(cr_Scene *s) {
+  if (!s || !s->valid)
+    return;
   free(s->framebuffer);
   free(s->zbuffer);
 #ifndef NO_MULTITHREAD
@@ -255,7 +271,8 @@ void cr_Scene_dealloc(cr_Scene *s) {
   free(s->zbuffer_locks);
 #endif
   free(s->entities.items);
-  cr_Matrix_dealloc(s->projection);
-  cr_Matrix_dealloc(s->viewport);
-  cr_Matrix_dealloc(s->world_transform);
+  cr_Matrix_dealloc(&s->projection);
+  cr_Matrix_dealloc(&s->viewport);
+  cr_Matrix_dealloc(&s->world_transform);
+  *s = (cr_Scene){0};
 }

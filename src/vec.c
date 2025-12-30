@@ -5,16 +5,20 @@
 #include <stdlib.h>
 
 cr_Vec3 cr_Vec3_copy(cr_Vec3 v) { return cr_Vec3_create(v.x, v.y, v.z); }
-void cr_Matrix_dealloc(cr_Matrix matrix) {
-  for (int i = 0; i < matrix.rows; i++) {
-    free(matrix.m[i]);
+void cr_Matrix_dealloc(cr_Matrix *matrix) {
+  if (!matrix || !matrix->valid)
+    return;
+  for (int i = 0; i < matrix->rows; i++) {
+    free(matrix->m[i]);
   }
-  free(matrix.m);
+  free(matrix->m);
+  *matrix = (cr_Matrix){0};
 }
 cr_Matrix cr_Matrix_empty(int rows, int cols) {
   cr_Matrix matrix;
   matrix.rows = rows;
   matrix.cols = cols;
+  matrix.valid = true;
   matrix.m = malloc(rows * sizeof(cr_num *));
   for (int i = 0; i < rows; i++) {
     matrix.m[i] = calloc(cols, sizeof(cr_num));
@@ -85,10 +89,10 @@ cr_Matrix cr_Matrix_rotation(cr_Vec3 thetas) {
   cr_Matrix rotx = cr_Matrix_rotx(thetas.x);
   cr_Matrix rotzy = cr_Matrix_matmul(rotz, roty);
   cr_Matrix rot = cr_Matrix_matmul(rotzy, rotx);
-  cr_Matrix_dealloc(rotz);
-  cr_Matrix_dealloc(roty);
-  cr_Matrix_dealloc(rotx);
-  cr_Matrix_dealloc(rotzy);
+  cr_Matrix_dealloc(&rotz);
+  cr_Matrix_dealloc(&roty);
+  cr_Matrix_dealloc(&rotx);
+  cr_Matrix_dealloc(&rotzy);
   return rot;
 }
 cr_Matrix cr_Matrix_from_vector(cr_Vec3 vec3) {
@@ -157,7 +161,7 @@ cr_num cr_Matrix_determinant(cr_Matrix matrix) {
   for (int j = 0; j < n; j++) {
     cr_Matrix minor = cr_Matrix_get_minor(matrix, 0, j);
     cr_num cofactor = matrix.m[0][j] * cr_Matrix_determinant(minor);
-    cr_Matrix_dealloc(minor);
+    cr_Matrix_dealloc(&minor);
     if (j % 2 != 0) {
       cofactor = -cofactor;
     }
@@ -178,7 +182,7 @@ cr_Matrix cr_Matrix_adjugate(cr_Matrix matrix) {
     for (int j = 0; j < n; j++) {
       cr_Matrix minor = cr_Matrix_get_minor(matrix, i, j);
       cr_num cofactor = cr_Matrix_determinant(minor);
-      cr_Matrix_dealloc(minor);
+      cr_Matrix_dealloc(&minor);
       if ((i + j) % 2 != 0) {
         cofactor = -cofactor;
       }
@@ -294,7 +298,7 @@ cr_Matrix cr_Matrix_inverse(cr_Matrix matrix) {
 
   cr_Matrix adjugate = cr_Matrix_adjugate(matrix);
   cr_Matrix inverse = cr_Matrix_empty(n, n);
-  cr_Matrix_dealloc(adjugate);
+  cr_Matrix_dealloc(&adjugate);
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < n; j++) {
       inverse.m[i][j] = adjugate.m[i][j] / det;
@@ -320,8 +324,8 @@ cr_Vec3 cr_Vec3_transform3(cr_Vec3 v, cr_Matrix mat) {
   cr_Matrix vmat = cr_Matrix_from_vector(v);
   cr_Matrix result = cr_Matrix_matmul(mat, vmat);
   cr_Vec3 out = cr_Vec3_from_matrix3(result);
-  cr_Matrix_dealloc(vmat);
-  cr_Matrix_dealloc(result);
+  cr_Matrix_dealloc(&vmat);
+  cr_Matrix_dealloc(&result);
   return out;
 }
 

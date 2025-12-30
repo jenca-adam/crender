@@ -15,6 +15,7 @@ cr_Object *cr_Object_new() {
   object->nuv = 0;
   object->nn = 0;
   object->nf = 0;
+  object->valid = true;
   return object;
 }
 void cr_Object_add_vertex(cr_Object *object, cr_Vec3 vertex) {
@@ -217,6 +218,8 @@ void cr_Face_dealloc(cr_Face *face) {
   free(face);
 }
 void cr_Object_dealloc(cr_Object *object) {
+  if (!object || !object->valid)
+    return;
   free(object->vertices);
   free(object->uvs);
   free(object->normals);

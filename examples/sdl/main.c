@@ -102,9 +102,9 @@ int main(int argc, char *argv[]) {
     return 1;
   }
   Entity main_entity = Entity_create(main_object);
-  main_entity.ts.diffuse = main_diffuse;
-  main_entity.ts.normal_map = main_normal;
-  main_entity.ts.specular_map = main_specular;
+  main_entity.ts.diffuse = &main_diffuse;
+  main_entity.ts.normal_map = &main_normal;
+  main_entity.ts.specular_map = &main_specular;
   Scene_add_entity(&scene, &main_entity);
   if (!initDisplay(WIN_WIDTH, WIN_HEIGHT, width, height, "renderer")) {
     return 1;
@@ -187,12 +187,12 @@ int main(int argc, char *argv[]) {
         case 't':
           using_other = !using_other;
           Entity_attach_texture(&main_entity, TextureSetIndex_diffuse,
-                                using_other ? other_texture : main_diffuse);
+                                using_other ? &other_texture : &main_diffuse);
           break;
         case 'r':
           Matrix transform = Matrix_identity(4);
           Entity_set_transform(&main_entity, transform);
-          Matrix_dealloc(transform);
+          Matrix_dealloc(&transform);
           break;
         default:
           break;
@@ -234,12 +234,12 @@ int main(int argc, char *argv[]) {
     clearDisplay(bg);
     updateDisplay(scene.framebuffer);
   }
-  Texture_dealloc(other_texture);
-  Entity_dealloc(main_entity);
+  Texture_dealloc(&other_texture);
   Object_dealloc(main_object);
-  Texture_dealloc(main_diffuse);
-  Texture_dealloc(main_normal);
-  Texture_dealloc(main_specular);
+  Texture_dealloc(&main_diffuse);
+  Texture_dealloc(&main_normal);
+  Texture_dealloc(&main_specular);
+  Entity_dealloc(&main_entity);
   Scene_dealloc(&scene);
   cleanupDisplay();
   return 0;
