@@ -18,6 +18,7 @@ cr_Object *cr_Object_new() {
   object->valid = true;
   return object;
 }
+// TODO DYNAMIC ARRAYS!!!!
 void cr_Object_add_vertex(cr_Object *object, cr_Vec3 vertex) {
   object->vertices =
       realloc(object->vertices, (object->nv + 1) * sizeof(cr_Vec3));
@@ -113,6 +114,21 @@ cr_Face *read_face(FILE *fp, cr_Object *obj) {
     vts[i] = 0;
     vns[i] = 0;
     read_face_vinfo(vinfos[i], &vs[i], &vts[i], &vns[i]);
+    if (vs[i] > obj->nv) {
+      cr_ERROR("corrupted object file! vertex index %d out of bounds for a "
+               "model with %d vertices",
+               vs[i], obj->nv);
+    }
+    if (vts[i] > obj->nuv) {
+      cr_ERROR("Corrupted object file! UV index %d out of bounds for a model "
+               "with %d UVs",
+               vts[i], obj->nuv);
+      if (vns[i] > obj->nn) {
+        cr_ERROR("Corrupted object file! Vertex normal index %d out of bounds "
+                 "for a model with %d vertex normals",
+                 vns[i], obj->nn);
+      }
+    }
   }
   face->vs = vs;
   face->vts = vts;
@@ -168,7 +184,7 @@ cr_Object *cr_Object_fromOBJ(char *fn) {
     }
   }
   if (!object->vertices) {
-    cr_ERROR("no vertices defined in object file");
+    cr_ERROR("no vertices defined in object file %s", fn);
   }
   if (!object->uvs) {
     cr_ERROR("object is not uv-mapped!");

@@ -9,14 +9,14 @@ typedef void omp_lock_t;
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#define cr_ABORT(t, s)                                                         \
-  do {                                                                         \
-    fprintf(stderr, "%s:%d %s(%s)\n", __FILE__, __LINE__, t, s);               \
-    abort();                                                                   \
-  } while (0);
+#define cr_ABORT(t, fmt, ...) \
+    do { \
+        fprintf(stderr, "%s:%d [%s] " fmt "\n", __FILE__, __LINE__, t, ##__VA_ARGS__); \
+        abort(); \
+    } while (0)
 
-#define cr_UNREACHABLE(s) cr_ABORT("UNREACHABLE", s)
-#define cr_ERROR(s) cr_ABORT("ERROR", s)
+#define cr_UNREACHABLE(fmt, ...) cr_ABORT("UNREACHABLE", fmt, ##__VA_ARGS__)
+#define cr_ERROR(s, ...) cr_ABORT("ERROR", s, ##__VA_ARGS__)
 #ifndef cr_EPSILON
 #define cr_EPSILON 1e-2
 #endif
