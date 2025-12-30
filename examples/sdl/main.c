@@ -31,6 +31,7 @@ n: switch normal map/interpolated normals\n\
 b: switch floor/closest/bilinear texture sampling\n\
 t: swap diffuse texture\n\
 r: reset object transform\n\
+p: hide/show objecy\n\
 -----------------------\n\
 \n");
 }
@@ -45,19 +46,19 @@ char *join_dirs(char *dirname, char *path) {
   }
   return buffer;
 }
-bool load_object_from_dir(char *dirname, Object **object, Texture *diffuse,
+bool load_object_from_dir(char *dirname, Object *object, Texture *diffuse,
                           Texture *normal_map, Texture *specular_map) {
   char *object_fname = join_dirs(dirname, "obj.obj");
-  Object *ob = Object_fromOBJ(object_fname);
+  Object ob = Object_fromOBJ(object_fname);
   free(object_fname);
-  if (!ob) {
+  if (!ob.valid) {
     return false;
   }
   char *diffuse_fname = join_dirs(dirname, "diffuse.ppm");
   *diffuse = Texture_read(diffuse_fname);
   free(diffuse_fname);
   if (!diffuse->m) {
-    Object_dealloc(ob);
+    Object_dealloc(&ob);
     return false;
   }
   *object = ob;
@@ -96,13 +97,13 @@ int main(int argc, char *argv[]) {
       .use_normal_map = true,
   };
   Scene scene = Scene_create(settings);
-  Object *main_object;
+  Object main_object;
   Texture main_diffuse, main_normal, main_specular;
   if (!load_object_from_dir(dirname, &main_object, &main_diffuse, &main_normal,
                             &main_specular)) {
     return 1;
   }
-  Entity main_entity = Entity_create(main_object);
+  Entity main_entity = Entity_create(&main_object);
   main_entity.ts.diffuse = &main_diffuse;
   main_entity.ts.normal_map = &main_normal;
   main_entity.ts.specular_map = &main_specular;
@@ -117,6 +118,7 @@ int main(int argc, char *argv[]) {
   Vec3 delta_trans = {0, 0, 0};
   Texture other_texture = Texture_create(1, 1, (Vec3){255, 0, 0});
   bool using_other = false;
+  bool entity_shown = true;
   uint32_t frame_time = SDL_GetTicks();
   while (running) {
     float dt = (SDL_GetTicks() - frame_time) / 1000.0;
@@ -195,6 +197,15 @@ int main(int argc, char *argv[]) {
           Entity_set_transform(&main_entity, transform);
           Matrix_dealloc(&transform);
           break;
+        case 'p':
+          entity_shown=!entity_shown;
+          if(entity_shown){
+            Scene_add_entity(&scene, &main_entity);
+          }
+          else{
+            Scene_remove_entity(&scene, &main_entity);
+          }
+          break;
         default:
           break;
         }
@@ -236,7 +247,7 @@ int main(int argc, char *argv[]) {
     updateDisplay(scene.framebuffer);
   }
   Texture_dealloc(&other_texture);
-  Object_dealloc(main_object);
+  Object_dealloc(&main_object);
   Texture_dealloc(&main_diffuse);
   Texture_dealloc(&main_normal);
   Texture_dealloc(&main_specular);

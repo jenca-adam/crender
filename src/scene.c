@@ -101,24 +101,12 @@ cr_Scene cr_Scene_create(cr_SceneSettings settings) {
 }
 
 void cr_Scene_add_entity(cr_Scene *s, cr_Entity *e) {
-  if (s->entities.count + 1 > s->entities.capacity) {
-
-    if (s->entities.capacity == 0) {
-      s->entities.capacity = cr_ENTITIES_INITIAL_CAPACITY;
-    }
-    while (s->entities.count + 1 > s->entities.capacity) {
-      s->entities.capacity *= 2;
-    }
-    s->entities.items =
-        realloc(s->entities.items, s->entities.capacity * sizeof(cr_Entity *));
-  }
-  s->entities.items[s->entities.count++] = e;
+  cr_DYNARR_PUSH(&s->entities, e);
 }
 void cr_Scene_remove_entity(cr_Scene *s, cr_Entity *e) {
   for (size_t i = 0; i < s->entities.count; i++) {
     if (s->entities.items[i] == e) {
-      s->entities.items[i] = s->entities.items[s->entities.count - 1];
-      s->entities.count--;
+      cr_DYNARR_REMOVE_KEEP_ORDER(&s->entities, i);
     }
   }
 }
@@ -242,12 +230,12 @@ void cr_Scene_render(cr_Scene *s, int num_threads) {
 #if !CR_CFG_NO_MULTITHREAD
 #pragma omp parallel for schedule(cr_SCHEDULE)
 #endif
-    for (int fi = 0; fi < ob->nf; fi++) {
-      cr_Face *face = ob->faces[fi];
-      cr_Texture_draw_face(framebuffer, rw, rh, face, diffuse, normal_map,
-                           specular_map, zbuffer, zbuffer_locks, light_dir, t,
-                           entity.transform, entity.inverse_transform,
-                           near_plane);
+    for (int fi = 0; fi < ob->faces.count; fi++) {
+      cr_Face *face = &ob->faces.items[fi];
+      cr_Texture_draw_face(framebuffer, rw, rh, face, entity.ob, diffuse,
+                           normal_map, specular_map, zbuffer, zbuffer_locks,
+                           light_dir, t, entity.transform,
+                           entity.inverse_transform, near_plane);
     }
     cr_Matrix_dealloc(&t);
   }
@@ -272,9 +260,10 @@ void cr_Scene_dealloc(cr_Scene *s) {
   }
   free(s->zbuffer_locks);
 #endif
-  free(s->entities.items);
+  cr_DYNARR_DEALLOC(s->entities);
   cr_Matrix_dealloc(&s->projection);
   cr_Matrix_dealloc(&s->viewport);
   cr_Matrix_dealloc(&s->world_transform);
+  cr_Matrix_dealloc(&s->inverse_world_transform);
   *s = (cr_Scene){0};
 }

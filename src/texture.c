@@ -295,7 +295,7 @@ cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture) {
     cr_Vec3 ldir = cr_Vec3_normalized(l);                                      \
     bool has_vns = true;                                                       \
     cr_Triangle raw_tri, uvs, vns;                                             \
-    if (!cr_Face_gettri(face, VERTEX, &raw_tri)) {                             \
+    if (!cr_Face_gettri(face, obj, VERTEX, &raw_tri)) {                        \
       return false;                                                            \
     }                                                                          \
     cr_Triangle world_tri = cr_Triangle_transform(raw_tri, world_transform);   \
@@ -314,10 +314,10 @@ cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture) {
         return false;                                                          \
       }                                                                        \
     }                                                                          \
-    if (!cr_Face_gettri(face, UV, &uvs)) {                                     \
+    if (!cr_Face_gettri(face, obj, UV, &uvs)) {                                \
       return false;                                                            \
     }                                                                          \
-    if (!cr_Face_gettri(face, NORMAL, &vns) && !normal_map) {                  \
+    if (!cr_Face_gettri(face, obj, NORMAL, &vns) && !normal_map) {             \
       n = cr_Vec3_normalized(                                                  \
           cr_Vec3_cross(cr_Vec3_sub(raw_tri.v2, raw_tri.v0),                   \
                         cr_Vec3_sub(raw_tri.v1, raw_tri.v0)));                 \
@@ -373,9 +373,9 @@ cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture) {
         cr_num iz = iw0 * b.x + iw1 * b.y + iw2 * b.z;                         \
         cr_num z = iz;                                                         \
         int zbuffix = x + y * tw;                                              \
-        CR_IFOMP(omp_lock_t * lock);                                           \
-        CR_IFOMP(lock = &zbuffer_locks[zbuffix]);                              \
-        CR_IFOMP(omp_set_lock(lock));                                          \
+        CR_IFOMPLOCK(omp_lock_t * lock);                                       \
+        CR_IFOMPLOCK(lock = &zbuffer_locks[zbuffix]);                          \
+        CR_IFOMPLOCK(omp_set_lock(lock));                                      \
                                                                                \
         if (zbuffer[zbuffix] < z) {                                            \
           cr_num spec, specpow;                                                \
@@ -398,7 +398,7 @@ cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture) {
           cr_num d = cr_Vec3_dot(normal, ldir);                                \
           _cr_Texture_shader_##SHADING_MODE(SAMPLING_MODE);                    \
         }                                                                      \
-        CR_IFOMP(omp_unset_lock(lock));                                        \
+        CR_IFOMPLOCK(omp_unset_lock(lock));                                    \
         cr_Vec3_ADD_INPLACE(b, deltax);                                        \
       }                                                                        \
       cr_Vec3_ADD_INPLACE(bbase, deltay);                                      \

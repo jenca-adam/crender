@@ -16,12 +16,21 @@
 #ifndef CR_CFG_NO_BFCULL
 #define CR_CFG_NO_BFCULL 0
 #endif
+#ifndef CR_CFG_NO_LOCK
+#define CR_CFG_NO_LOCK 0
+#endif
 #if CR_CFG_NO_MULTITHREAD
-#define CR_IFOMP(B)  
+#define CR_IFOMPLOCK(B)
+#define CR_IFOMP(B)
 typedef void omp_lock_t;
 #else
 #include <omp.h>
 #define CR_IFOMP(B) B
+#if CR_CFG_NO_LOCK
+#define CR_IFOMPLOCK(B)
+#else
+#define CR_IFOMPLOCK(B) B
+#endif
 #endif
 #if CR_CFG_NUM_DOUBLE
 typedef double cr_num;
@@ -31,15 +40,18 @@ typedef float cr_num;
 #define cr_NUM_FMT "%f"
 #endif
 
-#define cr_ABORT(t, fmt, ...) \
-    do { \
-        fprintf(stderr, "%s:%d [%s]" fmt "\n", __FILE__, __LINE__, t, ##__VA_ARGS__); \
-        abort(); \
-    } while (0)
+#define cr_ABORT(t, fmt, ...)                                                  \
+  do {                                                                         \
+    fprintf(stderr, "%s:%d [%s]" fmt "\n", __FILE__, __LINE__, t,              \
+            ##__VA_ARGS__);                                                    \
+    abort();                                                                   \
+  } while (0)
 
 #define cr_UNREACHABLE(fmt, ...) cr_ABORT("Unreachable", fmt, ##__VA_ARGS__)
 #define cr_ERROR(fmt, ...) cr_ABORT("Error", fmt, ##__VA_ARGS__)
-#define cr_ASSERT(a, fmt, ...) if (!(a)) cr_ABORT("Assertion `"#a"` failed", fmt, ##__VA_ARGS__);  
+#define cr_ASSERT(a, fmt, ...)                                                 \
+  if (!(a))                                                                    \
+    cr_ABORT("Assertion `" #a "` failed", fmt, ##__VA_ARGS__);
 #ifndef cr_EPSILON
 #define cr_EPSILON 1e-2
 #endif
@@ -69,9 +81,9 @@ typedef float cr_num;
   _cr_Texture_draw_face_##SHADING_MODE##_##SAMPLING_MODE##_##HAS_NORMAL_MAP
 #define _cr_Texture_draw_face_ARGS                                             \
   (cr_Linear_Texture texture, int width, int height, cr_Face *face,            \
-   cr_Texture *diffuse, cr_Texture *normal_map, cr_Texture *specular_map,      \
-   cr_num *zbuffer, omp_lock_t *zbuffer_locks, cr_Vec3 light_dir,              \
-   cr_Matrix transform, cr_Matrix world_transform,                             \
+   cr_Object *obj, cr_Texture *diffuse, cr_Texture *normal_map,                \
+   cr_Texture *specular_map, cr_num *zbuffer, omp_lock_t *zbuffer_locks,       \
+   cr_Vec3 light_dir, cr_Matrix transform, cr_Matrix world_transform,          \
    cr_Matrix inverse_transform, cr_num near_plane)
 
 #define _cr_Texture_draw_face_DECL(SHADING_MODE, SAMPLING_MODE,                \
@@ -135,9 +147,45 @@ typedef float cr_num;
 #define _cr_Texture_draw_face_SELECT                                           \
   switch (shading_mode) { _cr_Texture_draw_face_SHADING_CASES }                \
   return false;
-#define CR_CFG_ABI_TAG ((CR_CFG_NUM_DOUBLE)|(CR_CFG_NO_MULTITHREAD<<1)) 
-#define cr_INIT_CRENDER(...)  cr_ASSERT(_cr_abi_tag==CR_CFG_ABI_TAG, ": please recompile libcrender with correct crender_cfg.h!"); cr_crender_initted=true;
-#define cr_REQUIRE_INIT  cr_ASSERT(cr_crender_initted, ": crender not initted! use the macro cr_INIT_CRENDER().");
+#define CR_CFG_ABI_TAG ((CR_CFG_NUM_DOUBLE) | (CR_CFG_NO_MULTITHREAD << 1))
+#define cr_INIT_CRENDER(...)                                                   \
+  cr_ASSERT(_cr_abi_tag == CR_CFG_ABI_TAG,                                     \
+            ": please recompile libcrender with correct crender_cfg.h!");      \
+  cr_crender_initted = true;
+#define cr_REQUIRE_INIT                                                        \
+  cr_ASSERT(cr_crender_initted,                                                \
+            ": crender not initted! use the macro cr_INIT_CRENDER().");
+#define cr_DYNARR_BASE_CAPACITY 8
+#define cr_DYNARR_PUSH(arr, what)                                              \
+  do {                                                                         \
+                                                                               \
+    if ((arr)->count + 1 > (arr)->capacity) {                                  \
+      if ((arr)->capacity == 0) {                                              \
+        (arr)->capacity = cr_DYNARR_BASE_CAPACITY;                             \
+      } else {                                                                 \
+        (arr)->capacity *= 2;                                                  \
+      }                                                                        \
+      (arr)->items =                                                           \
+          realloc((arr)->items, (arr)->capacity * sizeof(*(arr)->items));      \
+      cr_ASSERT((arr)->items != NULL, "")                                      \
+    }                                                                          \
+    (arr)->items[(arr)->count++] = what;                                       \
+  } while (0)
+#define cr_DYNARR_REMOVE_SWAP_LAST(arr, index)                                 \
+  do {                                                                         \
+    cr_ASSERT((index) < (arr)->count, ": remove index out of range");          \
+    (arr)->items[index] = (arr)->items[--(arr)->count];                        \
+  } while (0)
+#define cr_DYNARR_REMOVE_KEEP_ORDER(arr, index)                                \
+  do {                                                                         \
+    cr_ASSERT((index) < (arr)->count, ": remove index out of range");          \
+    if (index < (arr)->count - 1) {                                            \
+      memmove(&(arr)->items[index], &(arr)->items[index + 1],                  \
+              ((arr)->count - 1 - index) * sizeof(*(arr)->items));             \
+    }                                                                          \
+    (arr)->count--;                                                            \
+  } while (0)
+#define cr_DYNARR_DEALLOC(arr) free(arr.items)
 extern int _cr_abi_tag;
 extern bool cr_crender_initted;
 typedef enum cr_ShadingMode {
@@ -169,6 +217,7 @@ typedef struct cr_Matrix {
   int cols;
   bool valid;
 } cr_Matrix;
+
 static inline cr_Vec2 cr_Vec2_create(cr_num x, cr_num y) {
   return (cr_Vec2){x, y};
 }
@@ -272,22 +321,26 @@ void cr_Vec3_set_item(cr_Vec3 v, int i, cr_num a);
 cr_num cr_Vec3_get_item(cr_Vec3 v, int i);
 cr_Vec4 cr_Vec4_transform(cr_Vec3 v, cr_Matrix m);
 
-struct cr_Object;
 typedef struct cr_Face {
-  int *vs;
-  int *vts;
-  int *vns;
-  struct cr_Object *parent;
+  int vs[3]; // non-triangular faces are not supported
+  int vts[3];
+  int vns[3];
 } cr_Face;
+typedef struct cr_Vec3_dynarr {
+  cr_Vec3 *items;
+  size_t count;
+  size_t capacity;
+} cr_Vec3_dynarr;
+typedef struct cr_Face_dynarr {
+  cr_Face *items;
+  size_t count;
+  size_t capacity;
+} cr_Face_dynarr;
 typedef struct cr_Object {
-  cr_Vec3 *vertices;
-  cr_Vec3 *uvs;
-  cr_Vec3 *normals;
-  cr_Face **faces;
-  int nv;
-  int nuv;
-  int nn;
-  int nf;
+  cr_Vec3_dynarr vertices;
+  cr_Vec3_dynarr uvs;
+  cr_Vec3_dynarr normals;
+  cr_Face_dynarr faces;
   bool valid;
 } cr_Object;
 typedef enum cr_FaceTriType {
@@ -295,13 +348,13 @@ typedef enum cr_FaceTriType {
   UV = 1,
   NORMAL = 2,
 } cr_FaceTriType;
-cr_Object *cr_Object_new();
+cr_Object cr_Object_new();
 void cr_Object_add_vertex(cr_Object *object, cr_Vec3 vertex);
 void cr_Object_add_uv(cr_Object *object, cr_Vec3 uv);
 void cr_Object_add_normal(cr_Object *object, cr_Vec3 normal);
-void cr_Object_add_face(cr_Object *object, cr_Face *face);
+void cr_Object_add_face(cr_Object *object, cr_Face face);
 void cr_Object_dealloc(cr_Object *object);
-cr_Object *cr_Object_fromOBJ(char *fn);
+cr_Object cr_Object_fromOBJ(char *fn);
 
 typedef struct cr_Triangle {
   cr_Vec3 v0;
@@ -316,8 +369,8 @@ cr_Triangle cr_Triangle_transform4(cr_Triangle tri, cr_Matrix transform,
                                    cr_Vec3 *ws);
 cr_Triangle cr_Triangle_create(cr_Vec3 v0, cr_Vec3 v1, cr_Vec3 v2);
 
-bool cr_Face_gettri(cr_Face *face, cr_FaceTriType tt, cr_Triangle *tri);
-void cr_Face_dealloc(cr_Face *face);
+bool cr_Face_gettri(cr_Face *face, cr_Object *obj, cr_FaceTriType tt,
+                    cr_Triangle *tri);
 
 typedef struct cr_Texture {
   cr_Vec3 *m;
@@ -461,6 +514,10 @@ _cr_Texture_draw_face_FORALL(_cr_Texture_draw_face_DECLH)
 #define UNREACHABLE cr_UNREACHABLE
 #define ASSERT cr_ASSERT
 #define INIT_CRENDER cr_INIT_CRENDER
+#define DYNARR_PUSH cr_DYNARR_PUSH
+#define DYNARR_REMOVE_SWAP_LAST cr_DYNARR_REMOVE_SWAP_LAST
+#define DYNARR_REMOVE_KEEP_ORDER cr_DYNARR_REMOVE_KEEP_ORDER
+#define DYNARR_DEALLOC cr_DYNARR_DEALLOC
 #define clamp cr_clamp
 #define Vec3_ADD_INPLACE cr_Vec3_ADD_INPLACE
 #define Vec3_NEG_INPLACE cr_Vec3_NEG_INPLACE

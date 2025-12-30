@@ -4,7 +4,7 @@ PROF ?= 0
 DEBUG ?= 0
 NUM_SIZE ?= float
 O0 ?= 0
-
+THREADUNSAFE ?= 0
 BUILD_DIR = ./build
 LIB_BUILD_DIR = $(BUILD_DIR)/lib
 INCLUDE_BUILD_DIR = $(BUILD_DIR)/include
@@ -67,9 +67,12 @@ endif
 ifeq ($(SINGLETHREAD),1)
 	echo "#define CR_CFG_NO_MULTITHREAD 1" >> $@
 endif
+ifeq ($(THREADUNSAFE),1)
+	echo "#define CR_CFG_NO_LOCK 1" >> $@
+endif
 	echo "#endif" >> $@
 	cp $@ $(CRENDER_CFG)
-$(CRENDER_HDR):
+$(CRENDER_HDR): $(CRENDER_HDR_IN)
 	@mkdir -p $(INCLUDE_DIR)
 	$(CLANG_FORMAT) -i $(CRENDER_HDR_IN)
 $(CRENDER_DYNLIB): $(CRENDER_OBJ)

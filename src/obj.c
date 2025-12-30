@@ -5,41 +5,27 @@
 #include <stdlib.h>
 #include <string.h>
 
-cr_Object *cr_Object_new() {
-  cr_REQUIRE_INIT cr_Object *object = malloc(sizeof(cr_Object));
-  object->vertices = NULL;
-  object->uvs = NULL;
-  object->normals = NULL;
-  object->faces = NULL;
-  object->nv = 0;
-  object->nuv = 0;
-  object->nn = 0;
-  object->nf = 0;
-  object->valid = true;
+cr_Object cr_Object_new() {
+  cr_REQUIRE_INIT cr_Object object = {0};
+  object.vertices = (cr_Vec3_dynarr){0};
+  object.uvs = (cr_Vec3_dynarr){0};
+  object.normals = (cr_Vec3_dynarr){0};
+  object.faces = (cr_Face_dynarr){0};
+  object.valid = true;
   return object;
 }
 // TODO DYNAMIC ARRAYS!!!!
 void cr_Object_add_vertex(cr_Object *object, cr_Vec3 vertex) {
-  object->vertices =
-      realloc(object->vertices, (object->nv + 1) * sizeof(cr_Vec3));
-  object->vertices[object->nv] = vertex;
-  object->nv++;
+  cr_DYNARR_PUSH(&object->vertices, vertex);
 }
 void cr_Object_add_uv(cr_Object *object, cr_Vec3 uv) {
-  object->uvs = realloc(object->uvs, (object->nuv + 1) * sizeof(cr_Vec3));
-  object->uvs[object->nuv] = uv;
-  object->nuv++;
+  cr_DYNARR_PUSH(&object->uvs, uv);
 }
 void cr_Object_add_normal(cr_Object *object, cr_Vec3 normal) {
-  object->normals =
-      realloc(object->normals, (object->nn + 1) * sizeof(cr_Vec3));
-  object->normals[object->nn] = normal;
-  object->nn++;
+  cr_DYNARR_PUSH(&object->normals, normal);
 }
-void cr_Object_add_face(cr_Object *object, cr_Face *face) {
-  object->faces = realloc(object->faces, (object->nf + 1) * sizeof(cr_Face *));
-  object->faces[object->nf] = face;
-  object->nf++;
+void cr_Object_add_face(cr_Object *object, cr_Face face) {
+  cr_DYNARR_PUSH(&object->faces, face);
 }
 cr_Vec3 read_vec3(FILE *fp) {
   char buffer[1024];
@@ -88,71 +74,52 @@ void read_face_vinfo(char *vinfo, int *vindex, int *uvindex, int *nindex) {
   }
   fclose(stream);
 }
-cr_Face *read_face(FILE *fp, cr_Object *obj) {
-  char **vinfos = malloc(3 * sizeof(char *));
-  for (int i = 0; i < 3; i++) {
-    vinfos[i] = calloc(512, sizeof(char));
-  }
-  cr_Face *face = malloc(sizeof(cr_Face));
-  face->parent = obj;
+bool read_face(FILE *fp, cr_Object *obj, cr_Face *face) {
+
+  char vinfos[3][512];
   char buffer[2048];
   if (fgets(buffer, sizeof(buffer), fp)) {
     if (sscanf(buffer, "%s %s %s", vinfos[0], vinfos[1], vinfos[2]) != 3) {
-      for (int i = 0; i < 3; i++) {
-        free(vinfos[i]);
-      }
-      free(vinfos);
-      free(face);
-      return NULL;
+      return false;
     }
   }
-  int *vs = malloc(3 * sizeof(int));
-  int *vts = malloc(3 * sizeof(int));
-  int *vns = malloc(3 * sizeof(int));
+  *face = (cr_Face){0};
   for (int i = 0; i < 3; i++) {
-    vs[i] = 0;
-    vts[i] = 0;
-    vns[i] = 0;
-    read_face_vinfo(vinfos[i], &vs[i], &vts[i], &vns[i]);
-    if (vs[i] > obj->nv) {
+    face->vs[i] = 0;
+    face->vts[i] = 0;
+    face->vns[i] = 0;
+    read_face_vinfo(vinfos[i], &face->vs[i], &face->vts[i], &face->vns[i]);
+    if (face->vs[i] > obj->vertices.count) {
       cr_ERROR("corrupted object file! vertex index %d out of bounds for a "
-               "model with %d vertices",
-               vs[i], obj->nv);
+               "model with %zu vertices",
+               face->vs[i], obj->vertices.count);
     }
-    if (vts[i] > obj->nuv) {
+    if (face->vts[i] > obj->uvs.count) {
       cr_ERROR("Corrupted object file! UV index %d out of bounds for a model "
-               "with %d UVs",
-               vts[i], obj->nuv);
-      if (vns[i] > obj->nn) {
+               "with %zu UVs",
+               face->vts[i], obj->uvs.count);
+      if (face->vns[i] > obj->normals.count) {
         cr_ERROR("Corrupted object file! Vertex normal index %d out of bounds "
-                 "for a model with %d vertex normals",
-                 vns[i], obj->nn);
+                 "for a model with %zu vertex normals",
+                 face->vns[i], obj->normals.count);
       }
     }
   }
-  face->vs = vs;
-  face->vts = vts;
-  face->vns = vns;
-  for (int i = 0; i < 3; i++) {
-    free(vinfos[i]);
-  }
-  free(vinfos);
-
-  return face;
+  return true;
 }
-cr_Object *cr_Object_fromOBJ(char *fn) {
+cr_Object cr_Object_fromOBJ(char *fn) {
 
   FILE *fp = fopen(fn, "rb");
 
   if (!fp) {
     fprintf(stderr, "cr_Object_fromOBJ: fopen(%s) failed: %s\n", fn,
             strerror(errno));
-    return NULL;
+    return (cr_Object){0};
   }
-  cr_Object *object = cr_Object_new();
+  cr_Object object = cr_Object_new();
   cr_Vec3 arg;
-  cr_Face *farg;
-  char *line_type = malloc(64 * sizeof(char));
+  cr_Face farg;
+  char line_type[64];
   while (1) {
     if (fscanf(fp, "%s ", line_type) != 1) {
       break;
@@ -162,86 +129,81 @@ cr_Object *cr_Object_fromOBJ(char *fn) {
       if (arg.x == NAN) {
         break;
       }
-      cr_Object_add_vertex(object, arg);
+      cr_Object_add_vertex(&object, arg);
     } else if (!strcmp(line_type, "vt")) {
       arg = read_vec3(fp);
       if (arg.x == NAN) {
         break;
       }
-      cr_Object_add_uv(object, arg);
+      cr_Object_add_uv(&object, arg);
     } else if (!strcmp(line_type, "vn")) {
       arg = read_vec3(fp);
       if (arg.x == NAN) {
         break;
       }
-      cr_Object_add_normal(object, arg);
+      cr_Object_add_normal(&object, arg);
     } else if (!strcmp(line_type, "f")) {
-      farg = read_face(fp, object);
-      if (!farg) {
+      cr_Face farg;
+      if (!read_face(fp, &object, &farg)) {
         break;
       }
-      cr_Object_add_face(object, farg);
+      cr_Object_add_face(&object, farg);
     }
   }
-  if (!object->vertices) {
-    cr_ERROR("no vertices defined in object file %s", fn);
+  if (!object.vertices.count) {
+    fprintf(stderr, "cr_Object_fromOBJ: no vertices defined in object file %s",
+            fn);
+    cr_Object_dealloc(&object);
+    return (cr_Object){0};
   }
-  if (!object->uvs) {
-    cr_ERROR("object is not uv-mapped!");
+  if (!object.uvs.count) {
+    fprintf(stderr, "cr_Object_fromOBJ: object %s is not uv-mapped!", fn);
+    cr_Object_dealloc(&object);
+    return (cr_Object){0};
   }
-  free(line_type);
   fclose(fp);
   return object;
 }
 
-bool cr_Face_gettri(cr_Face *face, cr_FaceTriType tt, cr_Triangle *tri) {
+bool cr_Face_gettri(cr_Face *face, cr_Object *obj, cr_FaceTriType tt,
+                    cr_Triangle *tri) {
   switch (tt) {
   case VERTEX:
-    if (!face->parent->vertices) {
+    if (!obj->vertices.count) {
       return false;
     }
-    *tri = cr_Triangle_create(face->parent->vertices[face->vs[0] - 1],
-                              face->parent->vertices[face->vs[1] - 1],
-                              face->parent->vertices[face->vs[2] - 1]);
+    *tri = cr_Triangle_create(obj->vertices.items[face->vs[0] - 1],
+                              obj->vertices.items[face->vs[1] - 1],
+                              obj->vertices.items[face->vs[2] - 1]);
     break;
 
   case UV:
-    if (!face->parent->uvs) {
+    if (!obj->uvs.count) {
       return false;
     }
 
-    *tri = cr_Triangle_create(face->parent->uvs[face->vts[0] - 1],
-                              face->parent->uvs[face->vts[1] - 1],
-                              face->parent->uvs[face->vts[2] - 1]);
+    *tri = cr_Triangle_create(obj->uvs.items[face->vts[0] - 1],
+                              obj->uvs.items[face->vts[1] - 1],
+                              obj->uvs.items[face->vts[2] - 1]);
     break;
   case NORMAL:
-    if (!face->parent->normals) {
+    if (!obj->normals.count) {
       return false;
     }
-    *tri = cr_Triangle_create(face->parent->normals[face->vns[0] - 1],
-                              face->parent->normals[face->vns[1] - 1],
-                              face->parent->normals[face->vns[2] - 1]);
+    *tri = cr_Triangle_create(obj->normals.items[face->vns[0] - 1],
+                              obj->normals.items[face->vns[1] - 1],
+                              obj->normals.items[face->vns[2] - 1]);
     break;
   default:
     cr_UNREACHABLE("face_gettri");
   }
   return true;
 }
-void cr_Face_dealloc(cr_Face *face) {
-  free(face->vs);
-  free(face->vts);
-  free(face->vns);
-  free(face);
-}
 void cr_Object_dealloc(cr_Object *object) {
   if (!object || !object->valid)
     return;
-  free(object->vertices);
-  free(object->uvs);
-  free(object->normals);
-  for (int i = 0; i < object->nf; i++) {
-    cr_Face_dealloc(object->faces[i]);
-  }
-  free(object->faces);
-  free(object);
+  cr_DYNARR_DEALLOC(object->vertices);
+  cr_DYNARR_DEALLOC(object->uvs);
+  cr_DYNARR_DEALLOC(object->normals);
+  cr_DYNARR_DEALLOC(object->faces);
 }
