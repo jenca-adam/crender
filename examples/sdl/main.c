@@ -120,9 +120,15 @@ int main(int argc, char *argv[]) {
   bool using_other = false;
   bool entity_shown = true;
   uint32_t frame_time = SDL_GetTicks();
+  float _counter = 0;
   while (running) {
+
     float dt = (SDL_GetTicks() - frame_time) / 1000.0;
-    printf("FPS:%5.2f\r", 1 / dt);
+    if (_counter>0.1) {
+        printf("FPS:%5.2f\r", 1 / dt);
+        _counter = 0;
+    }
+    _counter+=dt;
     fflush(stdout);
     frame_time = SDL_GetTicks();
     SDL_Event event;
