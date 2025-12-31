@@ -93,7 +93,6 @@ cr_Scene cr_Scene_create(cr_SceneSettings settings) {
   sc.__internal_settings_cache.render_height = 0;
   sc.framebuffer = NULL;
   sc.zbuffer = NULL;
-  sc.zbuffer_locks = NULL;
   sc.valid = true;
   sc.world_transform = cr_Matrix_identity(4);
   sc.inverse_world_transform = cr_Matrix_identity(4);
@@ -131,13 +130,23 @@ void cr_Scene_rebuild_transform(cr_Scene *s) {
   s->world_transform = cr_Matrix_matmul(s->viewport, s->projection);
 }
 
-int cr_Scene_init(cr_Scene *s) { return cr_Scene_update_settings(s); }
-int cr_Scene_update_settings(cr_Scene *s) {
+bool cr_Scene_init_locks(cr_Scene *s) {
+#if !CR_CFG_NO_MULTITHREAD
+  for (size_t i = 0; i < cr_ARRAY_LEN(s->zbuffer_locks); i++) {
+    omp_init_lock(&s->zbuffer_locks[i]);
+  }
+#endif
+  return true;
+}
+bool cr_Scene_init(cr_Scene *s) {
+  return cr_Scene_init_locks(s) && cr_Scene_update_settings(s);
+}
+bool cr_Scene_update_settings(cr_Scene *s) {
   return cr_Scene_resize(s, s->settings.render_width,
                          s->settings.render_height);
 }
 
-int cr_Scene_resize(cr_Scene *s, size_t new_width, size_t new_height) {
+bool cr_Scene_resize(cr_Scene *s, size_t new_width, size_t new_height) {
   size_t res = new_width * new_height, old_res = s->buffer_size;
   s->buffer_size = res;
   s->__internal_settings_cache = s->settings;
@@ -155,21 +164,8 @@ int cr_Scene_resize(cr_Scene *s, size_t new_width, size_t new_height) {
     zbuffer[i] = -FLT_MAX;
   }
   s->zbuffer = zbuffer;
-#if !CR_CFG_NO_MULTITHREAD
-  if (s->zbuffer_locks) {
-    for (size_t i = 0; i < old_res; i++) {
-      omp_destroy_lock(&s->zbuffer_locks[i]);
-    }
-    free(s->zbuffer_locks);
-  }
-  s->zbuffer_locks = malloc(res * sizeof(*s->zbuffer_locks));
-  cr_ASSERT(s->zbuffer_locks != NULL, "");
-  for (size_t i = 0; i < res; i++) {
-    omp_init_lock(&s->zbuffer_locks[i]);
-  }
-#endif
   cr_Scene_rebuild_transform(s);
-  return 1;
+  return true;
 }
 void cr_Scene_reset_buffers(cr_Scene *s) {
   for (size_t i = 0; i < s->buffer_size; i++) {
@@ -258,7 +254,6 @@ void cr_Scene_dealloc(cr_Scene *s) {
   for (size_t i = 0; i < s->buffer_size; i++) {
     omp_destroy_lock(&s->zbuffer_locks[i]);
   }
-  free(s->zbuffer_locks);
 #endif
   cr_DYNARR_DEALLOC(s->entities);
   cr_Matrix_dealloc(&s->projection);

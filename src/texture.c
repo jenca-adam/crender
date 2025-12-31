@@ -339,6 +339,8 @@ cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture) {
     cr_num iw2 = 1.0f / ws.z;                                                  \
     cr_num tw = width;                                                         \
     cr_num th = height;                                                        \
+    cr_num lock_tile_w = tw / cr_LOCK_BUFFER_TILES;                            \
+    cr_num lock_tile_h = th / cr_LOCK_BUFFER_TILES;                            \
     if (maxx < 0 || maxy < 0 || minx > tw || miny > th)                        \
       return false;                                                            \
     cr_Vec3 bbase =                                                            \
@@ -373,8 +375,10 @@ cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture) {
         cr_num iz = iw0 * b.x + iw1 * b.y + iw2 * b.z;                         \
         cr_num z = iz;                                                         \
         int zbuffix = x + y * tw;                                              \
+        int lbuffix = (int)(x / lock_tile_w) | (int)(y / lock_tile_h)          \
+                                                   << cr_LOCK_BUFFER_BITS;     \
         CR_IFOMPLOCK(omp_lock_t * lock);                                       \
-        CR_IFOMPLOCK(lock = &zbuffer_locks[zbuffix]);                          \
+        CR_IFOMPLOCK(lock = &zbuffer_locks[lbuffix]);                          \
         CR_IFOMPLOCK(omp_set_lock(lock));                                      \
                                                                                \
         if (zbuffer[zbuffix] < z) {                                            \

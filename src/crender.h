@@ -61,6 +61,12 @@ typedef float cr_num;
 #ifndef cr_AMBIENT
 #define cr_AMBIENT 0
 #endif
+#ifndef cr_LOCK_BUFFER_TILES
+#define cr_LOCK_BUFFER_TILES 16
+#endif
+#ifndef cr_LOCK_BUFFER_BITS
+#define cr_LOCK_BUFFER_BITS 4
+#endif
 #ifndef cr_SCHEDULE
 #define cr_SCHEDULE dynamic
 #endif
@@ -186,6 +192,7 @@ typedef float cr_num;
     (arr)->count--;                                                            \
   } while (0)
 #define cr_DYNARR_DEALLOC(arr) free(arr.items)
+#define cr_ARRAY_LEN(arr) sizeof(arr) / sizeof((arr)[0])
 extern int _cr_abi_tag;
 extern bool cr_crender_initted;
 typedef enum cr_ShadingMode {
@@ -464,7 +471,7 @@ typedef struct cr_Scene {
   size_t buffer_size;
   cr_Linear_Texture framebuffer;
   cr_num *zbuffer;
-  omp_lock_t *zbuffer_locks;
+  omp_lock_t zbuffer_locks[cr_LOCK_BUFFER_TILES * cr_LOCK_BUFFER_TILES];
   cr_Matrix projection;
   cr_Matrix viewport;
   cr_Matrix world_transform;
@@ -488,9 +495,10 @@ cr_Scene cr_Scene_create(cr_SceneSettings settings);
 void cr_Scene_add_entity(cr_Scene *s, cr_Entity *e);
 void cr_Scene_remove_entity(cr_Scene *s, cr_Entity *e);
 void cr_Scene_rebuild_transform(cr_Scene *s);
-int cr_Scene_init(cr_Scene *s);
-int cr_Scene_update_settings(cr_Scene *s);
-int cr_Scene_resize(cr_Scene *s, size_t new_width, size_t new_height);
+bool cr_Scene_init_locks(cr_Scene *s);
+bool cr_Scene_init(cr_Scene *s);
+bool cr_Scene_update_settings(cr_Scene *s);
+bool cr_Scene_resize(cr_Scene *s, size_t new_width, size_t new_height);
 void cr_Scene_dealloc(cr_Scene *s);
 void cr_Scene_reset_buffers(cr_Scene *s);
 void cr_Scene_render(cr_Scene *s, int num_threads);
