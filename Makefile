@@ -5,6 +5,7 @@ DEBUG ?= 0
 NUM_SIZE ?= float
 O0 ?= 0
 THREADUNSAFE ?= 0
+EXPAND_DRAW_FACE_MACRO ?= 0
 BUILD_DIR = ./build
 LIB_BUILD_DIR = $(BUILD_DIR)/lib
 INCLUDE_BUILD_DIR = $(BUILD_DIR)/include
@@ -19,11 +20,13 @@ CRENDER_LDLIBS = -lm
 EXAMPLE_LDLIBS = -lm -l:libcrender.a -lSDL2
 
 INCLUDES = -I/usr/include 
-
+CRENDER_UGLY_MACRO_DEFS = 
+CRENDER_UGLY_MACRO_IN = $(SRC_DIR)/texture.c
+CRENDER_EXPANDED_UGLY_MACRO = $(SRC_DIR)/texture_expanded.c
 CRENDER_CFG_IN = $(SRC_DIR)/crender_cfg.h
 CRENDER_CFG = $(INCLUDE_DIR)/crender_cfg.h
-CRENDER_SRC_DIR = $(SRC_DIR)/vec.c  $(SRC_DIR)/texture.c $(SRC_DIR)/obj.c $(SRC_DIR)/tri.c $(SRC_DIR)/scene.c $(SRC_DIR)/abi_tag.c
-CRENDER_OBJ = $(CRENDER_SRC_DIR:.c=.o)
+CRENDER_SRC = $(SRC_DIR)/vec.c  $(SRC_DIR)/obj.c $(SRC_DIR)/tri.c $(SRC_DIR)/scene.c $(SRC_DIR)/abi_tag.c
+CRENDER_OBJ = $(CRENDER_SRC:.c=.o)
 CRENDER_HDR = $(INCLUDE_DIR)/crender.h
 CRENDER_HDR_IN = $(SRC_DIR)/crender.h
 CRENDER_DYNLIB = $(LIB_BUILD_DIR)/libcrender.so
@@ -41,6 +44,8 @@ endif
 ifeq ($(SINGLETHREAD),0)
 	CRENDER_LDLIBS += -fopenmp
 	EXAMPLE_LDLIBS += -fopenmp
+else
+	CRENDER_UGLY_MACRO_DEFS += -DCRENDER_CFG_NO_MULTITHREAD
 endif
 ifeq ($(PROF),1)
 	CRENDER_CFLAGS += -pg
@@ -50,7 +55,11 @@ ifeq ($(DEBUG),1)
 	CRENDER_CFLAGS += -g3
 	EXAMPLE_CFLAGS += -g3
 endif
-
+ifeq ($(EXPAND_DRAW_FACE_MACRO), 1)
+	CRENDER_SRC += $(CRENDER_EXPANDED_UGLY_MACRO)
+else
+	CRENDER_SRC += $(CRENDER_UGLY_MACRO_IN)
+endif
 .PHONY: all clean remake example_sdl crender
 all: crender example_sdl
 _FORCE:
@@ -72,6 +81,9 @@ ifeq ($(THREADUNSAFE),1)
 endif
 	echo "#endif" >> $@
 	cp $@ $(CRENDER_CFG)
+$(CRENDER_EXPANDED_UGLY_MACRO): $(CRENDER_UGLY_MACRO_IN)
+	gcc -E -P -dD $(CRENDER_UGLY_MACRO_DEFS) $< -o $@
+	clang-format -i $@
 $(CRENDER_HDR): $(CRENDER_HDR_IN)
 	@mkdir -p $(INCLUDE_DIR)
 	$(CLANG_FORMAT) -i $(CRENDER_HDR_IN)

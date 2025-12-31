@@ -33,13 +33,15 @@ typedef void omp_lock_t;
 #endif
 #endif
 #if CR_CFG_NUM_DOUBLE
-typedef double cr_num;
+#define cr_num double
 #define cr_NUM_FMT "%lf"
+#define cr_NUM_INT_TYPE int64_t
 #else
-typedef float cr_num;
+#define cr_num float
 #define cr_NUM_FMT "%f"
+#define cr_NUM_INT_TYPE int32_t
 #endif
-
+#define cr_NUM_INT_CAST(a, b) memcpy(&b, &a, sizeof(cr_NUM_INT_TYPE))
 #define cr_ABORT(t, fmt, ...)                                                  \
   do {                                                                         \
     fprintf(stderr, "%s:%d [%s]" fmt "\n", __FILE__, __LINE__, t,              \
@@ -64,7 +66,6 @@ typedef float cr_num;
 #ifndef cr_SCHEDULE
 #define cr_SCHEDULE dynamic
 #endif
-#define cr_clamp(a, lo, hi) (a > hi) ? hi : ((a < lo) ? lo : a)
 #define cr_Vec3_ADD_INPLACE(a, b)                                              \
   a.x += b.x;                                                                  \
   a.y += b.y;                                                                  \
@@ -217,7 +218,9 @@ typedef struct cr_Matrix {
   int cols;
   bool valid;
 } cr_Matrix;
-
+static inline cr_num cr_clamp(cr_num a, cr_num lo, cr_num hi) {
+  return fminf(fmaxf(a, lo), hi);
+}
 static inline cr_Vec2 cr_Vec2_create(cr_num x, cr_num y) {
   return (cr_Vec2){x, y};
 }
