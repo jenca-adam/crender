@@ -333,9 +333,9 @@ cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture) {
     cr_num tw = width;                                                         \
     cr_num th = height;                                                        \
     int minx = fmax(0, cr_fmin3(x0, x1, x2));                                  \
-    int maxx = fmin(width, cr_fmax3(x0, x1, x2));                              \
+    int maxx = fmin(width - 1, cr_fmax3(x0, x1, x2));                          \
     int miny = fmax(0, cr_fmin3(y0, y1, y2));                                  \
-    int maxy = fmin(height, cr_fmax3(y0, y1, y2));                             \
+    int maxy = fmin(height - 1, cr_fmax3(y0, y1, y2));                         \
     cr_num iw0 = 1.0f / ws.x;                                                  \
     cr_num iw1 = 1.0f / ws.y;                                                  \
     cr_num iw2 = 1.0f / ws.z;                                                  \
@@ -351,16 +351,8 @@ cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture) {
         cr_barycentric(tri.v0, tri.v1, tri.v2, minx, miny + 1, bary_denom),    \
         bbase);                                                                \
     for (int y = miny; y <= maxy; y++) {                                       \
-      if (y < 0) {                                                             \
-        cr_Vec3_ADD_INPLACE(bbase, deltay);                                    \
-        continue;                                                              \
-      }                                                                        \
       cr_Vec3 b = bbase;                                                       \
       for (int x = minx; x <= maxx; x++) {                                     \
-        if (x < 0) {                                                           \
-          cr_Vec3_ADD_INPLACE(b, deltax);                                      \
-          continue;                                                            \
-        }                                                                      \
         cr_NUM_INT_TYPE ibx, iby, ibz;                                         \
         cr_NUM_INT_CAST(b.x, ibx);                                             \
         cr_NUM_INT_CAST(b.y, iby);                                             \
