@@ -93,6 +93,7 @@ cr_Scene cr_Scene_create(cr_SceneSettings settings) {
   sc.__internal_settings_cache.render_height = 0;
   sc.framebuffer = NULL;
   sc.zbuffer = NULL;
+  sc.zbuffer_locks = NULL;
   sc.valid = true;
   sc.world_transform = cr_Matrix_identity(4);
   sc.inverse_world_transform = cr_Matrix_identity(4);
@@ -130,17 +131,7 @@ void cr_Scene_rebuild_transform(cr_Scene *s) {
   s->world_transform = cr_Matrix_matmul(s->viewport, s->projection);
 }
 
-bool cr_Scene_init_locks(cr_Scene *s) {
-#if !CR_CFG_NO_MULTITHREAD
-  for (size_t i = 0; i < cr_ARRAY_LEN(s->zbuffer_locks); i++) {
-    omp_init_lock(&s->zbuffer_locks[i]);
-  }
-#endif
-  return true;
-}
-bool cr_Scene_init(cr_Scene *s) {
-  return cr_Scene_init_locks(s) && cr_Scene_update_settings(s);
-}
+bool cr_Scene_init(cr_Scene *s) { return cr_Scene_update_settings(s); }
 bool cr_Scene_update_settings(cr_Scene *s) {
   return cr_Scene_resize(s, s->settings.render_width,
                          s->settings.render_height);
@@ -164,6 +155,20 @@ bool cr_Scene_resize(cr_Scene *s, size_t new_width, size_t new_height) {
     zbuffer[i] = -FLT_MAX;
   }
   s->zbuffer = zbuffer;
+#if !CR_CFG_NO_MULTITHREAD
+  size_t shiftres = res >> (2 * cr_LOCK_BUFFER_BITS);
+  if (s->zbuffer_locks) {
+    for (size_t i = 0; i < old_res >> (2 * cr_LOCK_BUFFER_BITS); i++) {
+      omp_destroy_lock(&s->zbuffer_locks[i]);
+    }
+    free(s->zbuffer_locks);
+  }
+  s->zbuffer_locks = malloc(shiftres * sizeof(*s->zbuffer_locks));
+  for (size_t i = 0; i < shiftres; i++) {
+    omp_init_lock(&s->zbuffer_locks[i]);
+  }
+#endif
+
   cr_Scene_rebuild_transform(s);
   return true;
 }

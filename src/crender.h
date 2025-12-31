@@ -471,7 +471,7 @@ typedef struct cr_Scene {
   size_t buffer_size;
   cr_Linear_Texture framebuffer;
   cr_num *zbuffer;
-  omp_lock_t zbuffer_locks[cr_LOCK_BUFFER_TILES * cr_LOCK_BUFFER_TILES];
+  omp_lock_t *zbuffer_locks;
   cr_Matrix projection;
   cr_Matrix viewport;
   cr_Matrix world_transform;
@@ -495,7 +495,6 @@ cr_Scene cr_Scene_create(cr_SceneSettings settings);
 void cr_Scene_add_entity(cr_Scene *s, cr_Entity *e);
 void cr_Scene_remove_entity(cr_Scene *s, cr_Entity *e);
 void cr_Scene_rebuild_transform(cr_Scene *s);
-bool cr_Scene_init_locks(cr_Scene *s);
 bool cr_Scene_init(cr_Scene *s);
 bool cr_Scene_update_settings(cr_Scene *s);
 bool cr_Scene_resize(cr_Scene *s, size_t new_width, size_t new_height);
