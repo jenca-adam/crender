@@ -350,7 +350,6 @@ cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture) {
         cr_barycentric(tri.v0, tri.v1, tri.v2, minx, miny + 1, bary_denom),    \
         bbase);                                                                \
     for (int y = miny; y <= maxy; y++) {                                       \
-<<<<<<< HEAD
       cr_Vec3 b = bbase;                                                       \
       for (int x = minx; x <= maxx; x++) {                                     \
         cr_NUM_INT_TYPE ibx, iby, ibz;                                         \
@@ -359,19 +358,6 @@ cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture) {
         cr_NUM_INT_CAST(b.z, ibz);                                             \
         cr_NUM_INT_TYPE inside = ibx | iby | ibz;                              \
         if (inside < 0) {                                                      \
-=======
-      if (y < 0) {                                                             \
-        cr_Vec3_ADD_INPLACE(bbase, deltay);                                    \
-        continue;                                                              \
-      }                                                                        \
-      cr_Vec3 b = bbase;                                                       \
-      for (int x = minx; x <= maxx; x++) {                                     \
-        if (x < 0) {                                                           \
-          cr_Vec3_ADD_INPLACE(b, deltax);                                      \
-          continue;                                                            \
-        }                                                                      \
-        if (b.x < -cr_EPSILON || b.y < -cr_EPSILON || b.z < -cr_EPSILON) {     \
->>>>>>> main
           cr_Vec3_ADD_INPLACE(b, deltax);                                      \
           continue;                                                            \
         }                                                                      \
