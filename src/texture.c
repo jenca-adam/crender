@@ -240,14 +240,13 @@ static inline cr_Vec3 _interp_correct(cr_Vec3 v0, cr_Vec3 v1, cr_Vec3 v2,
 cr_num apow(cr_num x, uint8_t n) {
   cr_num p[8];
   p[0] = x;
-  for (int i = 1; i < 8; i++)
-    p[i] = p[i - 1] * p[i - 1];
-
   cr_num r = 1.0;
-  for (int i = 0; i < 8; i++)
-    if (n & (1 << i))
+  for (int i = 1; i < 8; i++) {
+    p[i] = p[i - 1] * p[i - 1];
+    if ((n >> i) & 1) {
       r *= p[i];
-
+    }
+  }
   return r;
 }
 void cr_Texture_dealloc_ref(cr_Texture *texture) {
