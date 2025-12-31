@@ -64,7 +64,6 @@ typedef float cr_num;
 #ifndef cr_SCHEDULE
 #define cr_SCHEDULE dynamic
 #endif
-#define cr_clamp(a, lo, hi) (a > hi) ? hi : ((a < lo) ? lo : a)
 #define cr_Vec3_ADD_INPLACE(a, b)                                              \
   a.x += b.x;                                                                  \
   a.y += b.y;                                                                  \
@@ -217,7 +216,9 @@ typedef struct cr_Matrix {
   int cols;
   bool valid;
 } cr_Matrix;
-
+static inline cr_num cr_clamp(cr_num a, cr_num lo, cr_num hi) {
+  return fminf(fmaxf(a, lo), hi);
+}
 static inline cr_Vec2 cr_Vec2_create(cr_num x, cr_num y) {
   return (cr_Vec2){x, y};
 }
