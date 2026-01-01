@@ -45,6 +45,7 @@ cr_Matrix cr_Matrix_clone(cr_Matrix m) {
 cr_Matrix cr_Matrix_matmul(cr_Matrix m1, cr_Matrix m2) {
 
   int rows = m1.rows, cols = m2.cols;
+  cr_ASSERT(m1.valid && m2.valid, ": check for early deallocation");
   cr_ASSERT(rows && cols, "");
   cr_Matrix result = cr_Matrix_empty(rows, cols);
 
@@ -96,15 +97,27 @@ cr_Matrix cr_Matrix_rotation(cr_Vec3 thetas) {
   cr_Matrix_dealloc(&rotzy);
   return rot;
 }
-cr_Matrix cr_Matrix_from_vector(cr_Vec3 vec3) {
+cr_Matrix cr_Matrix_from_vector(cr_Vec3 v) {
   cr_Matrix mat = cr_Matrix_empty(4, 1);
-  mat.m[0][0] = vec3.x;
-  mat.m[1][0] = vec3.y;
-  mat.m[2][0] = vec3.z;
+  mat.m[0][0] = v.x;
+  mat.m[1][0] = v.y;
+  mat.m[2][0] = v.z;
   mat.m[3][0] = 1.0;
   return mat;
 }
-
+cr_Matrix cr_Matrix_from_vectors(cr_Vec3 v0, cr_Vec3 v1, cr_Vec3 v2) {
+  cr_Matrix mat = cr_Matrix_empty(3, 3);
+  mat.m[0][0] = v0.x;
+  mat.m[0][1] = v0.y;
+  mat.m[0][2] = v0.z;
+  mat.m[1][0] = v1.x;
+  mat.m[1][1] = v1.y;
+  mat.m[1][2] = v1.z;
+  mat.m[2][0] = v2.x;
+  mat.m[2][1] = v2.y;
+  mat.m[2][2] = v2.z;
+  return mat;
+}
 cr_Matrix cr_Matrix_rotz(cr_num theta) {
   cr_Matrix mat = cr_Matrix_identity(4);
   mat.m[0][0] = cos(theta);
@@ -198,7 +211,8 @@ cr_Matrix cr_Matrix_inverse4(cr_Matrix matrix) {
   cr_num **m = matrix.m;
   cr_num det = cr_Matrix_determinant(matrix);
   if (det == 0) {
-    return inv;
+    cr_Matrix_dealloc(&inv);
+    return (cr_Matrix){0};
   }
 
   cr_num inv_det = 1.0 / det;
@@ -299,13 +313,12 @@ cr_Matrix cr_Matrix_inverse(cr_Matrix matrix) {
 
   cr_Matrix adjugate = cr_Matrix_adjugate(matrix);
   cr_Matrix inverse = cr_Matrix_empty(n, n);
-  cr_Matrix_dealloc(&adjugate);
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < n; j++) {
       inverse.m[i][j] = adjugate.m[i][j] / det;
     }
   }
-
+  cr_Matrix_dealloc(&adjugate);
   return inverse;
 }
 

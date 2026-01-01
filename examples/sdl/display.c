@@ -18,8 +18,13 @@ int initDisplay(int width, int height, int render_width, int render_height,
     SDL_Quit();
     return 0;
   }
+#ifdef VSYNC
   SDL_Renderer *renderer = SDL_CreateRenderer(
       window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+#else
+ SDL_Renderer *renderer = SDL_CreateRenderer(
+      window, -1, SDL_RENDERER_ACCELERATED);
+#endif
   if (!renderer) {
     _display_error("initDisplay: SDL_CreateRenderer failure");
     SDL_DestroyWindow(window);

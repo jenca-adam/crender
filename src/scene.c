@@ -168,6 +168,8 @@ int cr_Scene_resize(cr_Scene *s, size_t new_width, size_t new_height) {
   for (size_t i = 0; i < res; i++) {
     omp_init_lock(&s->zbuffer_locks[i]);
   }
+#else
+  (void)old_res;
 #endif
   cr_Scene_rebuild_transform(s);
   return 1;
@@ -212,6 +214,8 @@ void cr_Scene_render(cr_Scene *s, int num_threads) {
   bool use_normal_map = s->settings.use_normal_map;
 #if !CR_CFG_NO_MULTITHREAD
   omp_set_num_threads(num_threads);
+#else
+  (void)num_threads;
 #endif
   for (size_t i = 0; i < s->entities.count; i++) {
     cr_Entity entity = *s->entities.items[i];
@@ -236,7 +240,7 @@ void cr_Scene_render(cr_Scene *s, int num_threads) {
 #if !CR_CFG_NO_MULTITHREAD
 #pragma omp parallel for schedule(cr_SCHEDULE)
 #endif
-    for (int fi = 0; fi < ob->faces.count; fi++) {
+    for (size_t fi = 0; fi < ob->faces.count; fi++) {
       cr_Face *face = &ob->faces.items[fi];
       cr_Texture_draw_face(framebuffer, rw, rh, face, entity.ob, diffuse,
                            normal_map, specular_map, zbuffer, zbuffer_locks,

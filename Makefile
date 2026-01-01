@@ -1,4 +1,4 @@
-
+EXAMPLE_VSYNC ?= 1
 SINGLETHREAD ?= 0
 PROF ?= 0
 DEBUG ?= 0
@@ -7,17 +7,21 @@ O0 ?= 0
 THREADUNSAFE ?= 0
 EXPAND_DRAW_FACE_MACRO ?= 0
 BUILD_DIR = ./build
+UTILS_DIR = ./utils
 LIB_BUILD_DIR = $(BUILD_DIR)/lib
 INCLUDE_BUILD_DIR = $(BUILD_DIR)/include
+BIN_BUILD_DIR = $(BUILD_DIR)/bin
 SRC_DIR = ./src
 INCLUDE_DIR = $(BUILD_DIR)/include
 CC = gcc
 CLANG_FORMAT = clang-format
-
-CRENDER_CFLAGS = -Wall -Wextra -pedantic  -march=native -ffast-math -funroll-loops
-EXAMPLE_CFLAGS = -Wall -Wextra -pedantic  
-CRENDER_LDLIBS = -lm
-EXAMPLE_LDLIBS = -lm -l:libcrender.a -lSDL2
+CFLAGS = -Wall -Wextra -pedantic
+CRENDER_CFLAGS = $(CFLAGS)  -march=native -ffast-math -funroll-loops
+EXAMPLE_CFLAGS = $(CFLAGS)
+LDLIBS = -lm
+CRENDER_LDLIBS = $(LDLIBS)
+EXAMPLE_LDLIBS = $(LDLIBS) -l:libcrender.a -lSDL2
+UTIL_CRBAKE_LDLIBS = $(LDLIBS) -l:libcrender.a
 
 INCLUDES = -I/usr/include 
 CRENDER_UGLY_MACRO_DEFS = 
@@ -33,27 +37,26 @@ CRENDER_DYNLIB = $(LIB_BUILD_DIR)/libcrender.so
 CRENDER_STLIB = $(LIB_BUILD_DIR)/libcrender.a
 EXAMPLE_SDL = examples/sdl/renderer
 EXAMPLE_SDL_SRC_DIR = examples/sdl/main.c examples/sdl/display.c
-
+UTIL_CRBAKE = $(BIN_BUILD_DIR)/crbake
+UTIL_CRBAKE_SRC = $(UTILS_DIR)/crbake.c
 ifeq ($(O0), 1)
-	CRENDER_CFLAGS += -O0
-	EXAMPLE_CFLAGS += -O0
+	CFLAGS += -O0
 else
-	CRENDER_CFLAGS += -O3
-	EXAMPLE_CFLAGS += -O3
+	CFLAGS += -O3
 endif
 ifeq ($(SINGLETHREAD),0)
-	CRENDER_LDLIBS += -fopenmp
-	EXAMPLE_LDLIBS += -fopenmp
+	LDLIBS += -fopenmp
 else
 	CRENDER_UGLY_MACRO_DEFS += -DCRENDER_CFG_NO_MULTITHREAD
 endif
 ifeq ($(PROF),1)
-	CRENDER_CFLAGS += -pg
-	EXAMPLE_CFLAGS += -pg
+	CFLAGS += -pg
 endif
 ifeq ($(DEBUG),1)
-	CRENDER_CFLAGS += -g3
-	EXAMPLE_CFLAGS += -g3
+	CFLAGS += -g3
+endif
+ifeq ($(EXAMPLE_VSYNC),1)
+	EXAMPLE_CFLAGS += -DVSYNC
 endif
 ifeq ($(EXPAND_DRAW_FACE_MACRO), 1)
 	CRENDER_SRC += $(CRENDER_EXPANDED_UGLY_MACRO)
@@ -61,11 +64,16 @@ else
 	CRENDER_SRC += $(CRENDER_UGLY_MACRO_IN)
 endif
 .PHONY: all clean remake example_sdl crender
-all: crender example_sdl
+all: crender crbake example_sdl
 _FORCE:
 crender: $(CRENDER_CFG_IN) $(CRENDER_HDR) $(CRENDER_DYNLIB) $(CRENDER_STLIB)
 	@cp $(CRENDER_HDR_IN) $(CRENDER_HDR)
-	$(MAKE) oclean
+	#$(MAKE) oclean
+crbake: $(UTIL_CRBAKE)
+$(UTIL_CRBAKE): $(UTIL_CRBAKE_SRC)
+	@mkdir -p $(BIN_BUILD_DIR)
+	$(CC) $< -o $@ $(CFLAGS) $(UTIL_CRBAKE_LDLIBS) -I$(INCLUDE_DIR) $(INCLUDES) -L$(LIB_BUILD_DIR)
+
 $(CRENDER_CFG_IN): _FORCE
 	echo "#ifndef _CRENDER_CFG_H" > $@
 	echo "#define _CRENDER_CFG_H" >> $@
@@ -96,14 +104,14 @@ $(CRENDER_STLIB): $(CRENDER_OBJ)
 example_sdl: $(EXAMPLE_SDL)
 
 $(EXAMPLE_SDL): $(EXAMPLE_SDL_SRC_DIR)
-	$(CC) $(EXAMPLE_SDL_SRC_DIR) $(EXAMPLE_CFLAGS) -I$(INCLUDE_DIR) -I$(INCLUDES) -L$(LIB_BUILD_DIR) $(EXAMPLE_LDLIBS) -o $@
+	$(CC) $(EXAMPLE_SDL_SRC_DIR) $(EXAMPLE_CFLAGS) -I$(INCLUDE_DIR) $(INCLUDES) -L$(LIB_BUILD_DIR) $(EXAMPLE_LDLIBS) -o $@
 
 %.o: %.c
 	$(CLANG_FORMAT) -i $<
 	$(CC) $(CRENDER_CFLAGS) $(CRENDER_DEFS) $(INCLUDES) -fPIC -c $< -o $@ $(CRENDER_LDLIBS)
 
 clean:
-	rm -f $(CRENDER_DYNLIB) $(CRENDER_STLIB) $(EXAMPLE_SDL) $(CRENDER_OBJ) $(EXAMPLE_SDL_OBJ)
+	rm -f $(CRENDER_DYNLIB) $(CRENDER_STLIB) $(EXAMPLE_SDL) $(CRENDER_OBJ) $(EXAMPLE_SDL_OBJ) $(UTIL_CRBAKE)
 oclean:
 	rm -f $(CRENDER_OBJ) $(EXAMPLE_SDL_OBJ)
 remake: clean all

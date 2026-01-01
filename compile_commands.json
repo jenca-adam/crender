@@ -1,0 +1,174 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-Wall",
+      "-Wextra",
+      "-pedantic",
+      "-march=native",
+      "-ffast-math",
+      "-funroll-loops",
+      "-O3",
+      "-I/usr/include",
+      "-fPIC",
+      "-c",
+      "-fopenmp",
+      "-o",
+      "src/vec.o",
+      "src/vec.c"
+    ],
+    "directory": "/home/adam/crender",
+    "file": "/home/adam/crender/src/vec.c",
+    "output": "/home/adam/crender/src/vec.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-Wall",
+      "-Wextra",
+      "-pedantic",
+      "-march=native",
+      "-ffast-math",
+      "-funroll-loops",
+      "-O3",
+      "-I/usr/include",
+      "-fPIC",
+      "-c",
+      "-fopenmp",
+      "-o",
+      "src/obj.o",
+      "src/obj.c"
+    ],
+    "directory": "/home/adam/crender",
+    "file": "/home/adam/crender/src/obj.c",
+    "output": "/home/adam/crender/src/obj.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-Wall",
+      "-Wextra",
+      "-pedantic",
+      "-march=native",
+      "-ffast-math",
+      "-funroll-loops",
+      "-O3",
+      "-I/usr/include",
+      "-fPIC",
+      "-c",
+      "-fopenmp",
+      "-o",
+      "src/tri.o",
+      "src/tri.c"
+    ],
+    "directory": "/home/adam/crender",
+    "file": "/home/adam/crender/src/tri.c",
+    "output": "/home/adam/crender/src/tri.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-Wall",
+      "-Wextra",
+      "-pedantic",
+      "-march=native",
+      "-ffast-math",
+      "-funroll-loops",
+      "-O3",
+      "-I/usr/include",
+      "-fPIC",
+      "-c",
+      "-fopenmp",
+      "-o",
+      "src/scene.o",
+      "src/scene.c"
+    ],
+    "directory": "/home/adam/crender",
+    "file": "/home/adam/crender/src/scene.c",
+    "output": "/home/adam/crender/src/scene.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-Wall",
+      "-Wextra",
+      "-pedantic",
+      "-march=native",
+      "-ffast-math",
+      "-funroll-loops",
+      "-O3",
+      "-I/usr/include",
+      "-fPIC",
+      "-c",
+      "-fopenmp",
+      "-o",
+      "src/abi_tag.o",
+      "src/abi_tag.c"
+    ],
+    "directory": "/home/adam/crender",
+    "file": "/home/adam/crender/src/abi_tag.c",
+    "output": "/home/adam/crender/src/abi_tag.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-Wall",
+      "-Wextra",
+      "-pedantic",
+      "-march=native",
+      "-ffast-math",
+      "-funroll-loops",
+      "-O3",
+      "-I/usr/include",
+      "-fPIC",
+      "-c",
+      "-fopenmp",
+      "-o",
+      "src/texture.o",
+      "src/texture.c"
+    ],
+    "directory": "/home/adam/crender",
+    "file": "/home/adam/crender/src/texture.c",
+    "output": "/home/adam/crender/src/texture.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-c",
+      "-Wall",
+      "-Wextra",
+      "-pedantic",
+      "-O3",
+      "-DVSYNC",
+      "-I./build/include",
+      "-I/usr/include",
+      "-fopenmp",
+      "-o",
+      "examples/sdl/renderer",
+      "examples/sdl/main.c"
+    ],
+    "directory": "/home/adam/crender",
+    "file": "/home/adam/crender/examples/sdl/main.c",
+    "output": "/home/adam/crender/examples/sdl/renderer"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-c",
+      "-Wall",
+      "-Wextra",
+      "-pedantic",
+      "-O3",
+      "-DVSYNC",
+      "-I./build/include",
+      "-I/usr/include",
+      "-fopenmp",
+      "-o",
+      "examples/sdl/renderer",
+      "examples/sdl/display.c"
+    ],
+    "directory": "/home/adam/crender",
+    "file": "/home/adam/crender/examples/sdl/display.c",
+    "output": "/home/adam/crender/examples/sdl/renderer"
+  }
+]

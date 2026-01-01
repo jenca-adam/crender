@@ -26,8 +26,8 @@ cr_Texture cr_Texture_create(int width, int height, cr_Vec3 color) {
   return texture;
 }
 
-void cr_Texture_writePPM(cr_Texture texture, char *fn) {
-  if (!texture.m) {
+void cr_Texture_writePPM(cr_Texture *texture, char *fn) {
+  if (!texture->valid) {
     return;
   }
   FILE *fp = fopen(fn, "wb");
@@ -35,9 +35,9 @@ void cr_Texture_writePPM(cr_Texture texture, char *fn) {
     perror("cr_Texture_writePPM: fopen() failed");
     return;
   }
-  fprintf(fp, "P6\n%d %d\n255\n", texture.width, texture.height);
-  for (int i = 0; i < texture.width * texture.height; i++) {
-    cr_Vec3 color = texture.m[i];
+  fprintf(fp, "P6\n%d %d\n255\n", texture->width, texture->height);
+  for (int i = 0; i < texture->width * texture->height; i++) {
+    cr_Vec3 color = texture->m[i];
     fputc(color.x, fp);
     fputc(color.y, fp);
     fputc(color.z, fp);
@@ -107,12 +107,11 @@ cr_Texture cr_Texture_readPAM(char *fn) {
     abort();
   }
   if (!fgets(mode, sizeof(mode), fp)) {
-    perror("cr_Texture_readPAM: format error");
+    fprintf(stderr, "cr_Texture_readPAM: format error");
     abort();
   }
   if (strcmp(mode, "P7")) {
-    errno = ENOTSUP;
-    perror("cr_Texture_readPAM: format error");
+    fprintf(stderr, "cr_Texture_readPAM: format error");
     abort();
   }
 
@@ -123,23 +122,21 @@ cr_Texture cr_Texture_readPAM(char *fn) {
           &width, &height, &depth, &lmaxn, tupltype) != 5) {
     free(tupltype);
     errno = EINVAL;
-    perror("cr_Texture_readPAM: format error");
+    fprintf(stderr, "cr_Texture_readPAM: format error");
     abort();
   }
   if (strcmp(tupltype, "RGB_ALPHA")) {
     free(tupltype);
-    errno = ENOTSUP;
-    perror("cr_Texture_readPAM: can only read RGB_ALPHA pams");
+    fprintf(stderr, "cr_Texture_readPAM: can only read RGB_ALPHA pams");
     abort();
   }
   free(tupltype);
   if (depth != 4) {
-    perror("cr_Texture_readPAM: expected depth 4");
+    fprintf(stderr, "cr_Texture_readPAM: expected depth 4");
     abort();
   }
   if (lmaxn != 255) {
-    errno = ENOTSUP;
-    perror("cr_Texture_readPAM: expected maxval 255");
+    fprintf(stderr, "cr_Texture_readPAM: expected maxval 255");
     abort();
   }
   cr_Texture texture =
@@ -153,7 +150,7 @@ cr_Texture cr_Texture_readPAM(char *fn) {
 
     if (feof(fp)) {
       cr_Texture_dealloc(&texture);
-      perror("cr_Texture_readPAM: format error");
+      fprintf(stderr, "cr_Texture_readPAM: format error");
       abort();
     }
     texture.m[i] = cr_Vec3_create(rgb[0], rgb[1], rgb[2]);
@@ -166,8 +163,7 @@ cr_Texture cr_Texture_read(char *fn) {
   } else if (strcmp(fn + strlen(fn) - 4, ".pam") == 0) {
     return cr_Texture_readPAM(fn);
   } else {
-    errno = ENOTSUP;
-    perror("cr_Texture_read: unknown file format");
+    fprintf(stderr, "cr_Texture_read: unknown file format");
     abort();
   }
 }
@@ -194,8 +190,8 @@ static inline cr_Vec3 cr_Texture_getuv_LINEAR(const cr_Texture *restrict t,
   cr_num y = v * (h - 1);
   int x0 = (int)x;
   int y0 = (int)y;
-  int x1 = x0 + (x0 + 1 < w);
-  int y1 = y0 + (y0 + 1 < h);
+  int x1 = x0 + ((size_t)x0 + 1 < w);
+  int y1 = y0 + ((size_t)y0 + 1 < h);
   cr_num tx = x - x0;
   cr_num ty = y - y0;
   const cr_Vec3 *restrict row0 = &t->m[y0 * w];
@@ -266,6 +262,126 @@ cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture) {
   }
   return t;
 }
+bool _tangent_space_basis(cr_Vec3 v0, cr_Vec3 v1, cr_Vec3 v2, cr_Vec3 bn,
+                          cr_Vec3 uv0, cr_Vec3 uv1, cr_Vec3 uv2, cr_Vec3 *i,
+                          cr_Vec3 *j) {
+  cr_Matrix mat =
+      cr_Matrix_from_vectors(cr_Vec3_sub(v1, v0), cr_Vec3_sub(v2, v0), bn);
+  cr_Matrix mati = cr_Matrix_inverse(mat);
+  if (!mati.valid) {
+    *i = (cr_Vec3){0};
+    *j = (cr_Vec3){0};
+    cr_Matrix_dealloc(&mat);
+    return false;
+  }
+  cr_Vec3 uvvecx = {uv1.x - uv0.x, uv2.x - uv0.x, 0};
+  cr_Vec3 uvvecy = {uv1.y - uv0.y, uv2.y - uv0.y, 0};
+  *i = cr_Vec3_normalized(cr_Vec3_transform3(uvvecx, mati));
+  *j = cr_Vec3_normalized(cr_Vec3_transform3(uvvecy, mati));
+  cr_Matrix_dealloc(&mat);
+  cr_Matrix_dealloc(&mati);
+  return true;
+}
+cr_Vec3 cr_Triangle_get_tangent(cr_Triangle vs, cr_Triangle uvs) {
+  cr_Vec3 v0 = vs.v0, v1 = vs.v1, v2 = vs.v2, uv0 = uvs.v0, uv1 = uvs.v1,
+          uv2 = uvs.v2;
+  cr_Vec3 e1 = cr_Vec3_sub(v1, v0), e2 = cr_Vec3_sub(v2, v0);
+  cr_Vec3 uve1 = cr_Vec3_sub(uv1, uv0), uve2 = cr_Vec3_sub(uv2, uv0);
+  cr_num r = (uve1.x * uve2.y - uve1.y * uve2.x);
+  if (fabs(r) < cr_EPSILON)
+    r = 1.0;
+  r = 1.0 / r;
+  return cr_Vec3_normalized(cr_Vec3_mul(
+      cr_Vec3_sub(cr_Vec3_mul(e1, uve2.y), cr_Vec3_mul(e2, uve1.y)), r));
+}
+void cr_Object_compute_vertex_tangents(cr_Object *object,
+                                       cr_Vec3 *out_tangents) {
+  for (size_t i = 0; i < object->vertices.count; i++)
+    out_tangents[i] = (cr_Vec3){0, 0, 0};
+
+  for (size_t i = 0; i < object->faces.count; i++) {
+    cr_Face *face = &object->faces.items[i];
+    cr_Triangle vs, uvs;
+    if (!cr_Face_gettri(face, object, VERTEX, &vs))
+      continue;
+    if (!cr_Face_gettri(face, object, UV, &uvs))
+      continue;
+
+    cr_Vec3 tri_tangent = cr_Triangle_get_tangent(vs, uvs);
+    for (int j = 0; j < 3; j++) {
+      int vi = face->vs[i];
+      out_tangents[vi - 1] = cr_Vec3_add(out_tangents[vi - 1], tri_tangent);
+    }
+  }
+  for (size_t i = 0; i < object->vertices.count; i++)
+    out_tangents[i] = cr_Vec3_normalized(out_tangents[i]);
+}
+cr_Texture cr_Texture_bake_object_space_normal_map(cr_Texture *in,
+                                                   cr_Object *object) {
+  cr_ASSERT(in->valid, "invalid texture");
+  cr_Texture out = cr_Texture_alloc(in->width, in->height);
+  cr_Vec3 *vertex_tangents = malloc(sizeof(cr_Vec3) * object->vertices.count);
+  cr_Object_compute_vertex_tangents(object, vertex_tangents);
+  for (size_t i = 0; i < object->faces.count; i++) {
+    // run a super simple version of the rasterization algorithm, it doesn't
+    // have to be particularly fast
+    cr_Face *face = &object->faces.items[i];
+    cr_Triangle uvs, vs, vns;
+    if (!cr_Face_gettri(face, object, VERTEX, &vs)) {
+      continue; // just in case
+    }
+    if (!cr_Face_gettri(face, object, UV, &uvs)) {
+      continue;
+    }
+    if (!cr_Face_gettri(face, object, NORMAL, &vns)) {
+      cr_Vec3 n = cr_Vec3_normalized(
+          cr_Vec3_cross(cr_Vec3_sub(vs.v2, vs.v0), cr_Vec3_sub(vs.v1, vs.v0)));
+      vns = (cr_Triangle){n, n, n};
+    }
+    cr_Triangle scaled_uvs = {{uvs.v0.x * in->width, uvs.v0.y * in->height, 0},
+                              {uvs.v1.x * in->width, uvs.v1.y * in->height, 0},
+                              {uvs.v2.x * in->width, uvs.v2.y * in->height, 0}};
+    int minx =
+        fmaxf(0, cr_fmin3(scaled_uvs.v0.x, scaled_uvs.v1.x, scaled_uvs.v2.x));
+    int maxx = fminf(in->width - 1, cr_fmax3(scaled_uvs.v0.x, scaled_uvs.v1.x,
+                                             scaled_uvs.v2.x));
+    int miny =
+        fmaxf(0, cr_fmin3(scaled_uvs.v0.y, scaled_uvs.v1.y, scaled_uvs.v2.y));
+    int maxy = fminf(in->height - 1, cr_fmax3(scaled_uvs.v0.y, scaled_uvs.v1.y,
+                                              scaled_uvs.v2.y));
+
+    cr_num bary_denom = 1 / ((scaled_uvs.v2.x - scaled_uvs.v0.x) *
+                                 (scaled_uvs.v1.y - scaled_uvs.v0.y) -
+                             (scaled_uvs.v1.x - scaled_uvs.v0.x) *
+                                 (scaled_uvs.v2.y - scaled_uvs.v0.y));
+    cr_Triangle vt;
+    vt.v0 = vertex_tangents[face->vs[0]];
+    vt.v1 = vertex_tangents[face->vs[1]];
+    vt.v2 = vertex_tangents[face->vs[2]];
+    for (int y = miny; y <= maxy; y++) {
+      for (int x = minx; x <= maxx; x++) {
+        cr_Vec3 bary = cr_barycentric(scaled_uvs.v0, scaled_uvs.v1,
+                                      scaled_uvs.v2, x, y, bary_denom);
+        if (bary.x < -cr_EPSILON || bary.y < -cr_EPSILON ||
+            bary.z < -cr_EPSILON)
+          continue;
+        cr_Vec3 normal = cr_trinterpolate(vns, bary);
+        cr_Vec3 tangent = cr_trinterpolate(vt, bary);
+        cr_Vec3 bitangent = cr_Vec3_normalized(cr_Vec3_cross(tangent, normal));
+        cr_Matrix tbn_mat = cr_Matrix_from_vectors(tangent, bitangent, normal);
+        cr_Vec3 tangent_space_normal = cr_Vec3_normal_from_color(
+            cr_Texture_getuv_FLOOR(in, (cr_Vec3){(cr_num)x / in->width,
+                                                 (cr_num)y / in->height, 0}));
+        cr_Vec3 object_space_normal = cr_Vec3_normalized(
+            cr_Vec3_transform3(tangent_space_normal, tbn_mat));
+        out.m[out.width * (out.height - y - 1) + x] =
+            cr_Vec3_normal_as_color(tangent);
+      }
+    }
+  }
+  return out;
+}
+
 // I LOVE C
 
 #define _cr_Texture_shader_PHONG(SAMPLING_MODE, ...)                           \
@@ -305,7 +421,7 @@ cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture) {
           cr_Vec3_cross(cr_Vec3_sub(raw_tri.v2, raw_tri.v0),                   \
                         cr_Vec3_sub(raw_tri.v1, raw_tri.v0)));                 \
       cr_num intensity = cr_Vec3_dot(n, ldir);                                 \
-      if (intensity < -cr_EPSILON) {                                           \
+      if (intensity < -1 - cr_EPSILON) {                                       \
         return false;                                                          \
       }                                                                        \
     }                                                                          \
@@ -313,9 +429,11 @@ cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture) {
       return false;                                                            \
     }                                                                          \
     if (!cr_Face_gettri(face, obj, NORMAL, &vns) && !normal_map) {             \
-      if(CR_CFG_NO_BFCULL) {n = cr_Vec3_normalized(                                                  \
-          cr_Vec3_cross(cr_Vec3_sub(raw_tri.v2, raw_tri.v0),                   \
-                        cr_Vec3_sub(raw_tri.v1, raw_tri.v0)));}                 \
+      if (CR_CFG_NO_BFCULL) {                                                  \
+        n = cr_Vec3_normalized(                                                \
+            cr_Vec3_cross(cr_Vec3_sub(raw_tri.v2, raw_tri.v0),                 \
+                          cr_Vec3_sub(raw_tri.v1, raw_tri.v0)));               \
+      }                                                                        \
       has_vns = false;                                                         \
       vns = cr_Triangle_create(n, n, n);                                       \
     }                                                                          \
@@ -392,7 +510,7 @@ cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture) {
                 cr_Texture_getuv_##SAMPLING_MODE(normal_map, uv)));            \
           }                                                                    \
           cr_num d = cr_Vec3_dot(normal, ldir);                                \
-          _cr_Texture_shader_##SHADING_MODE(SAMPLING_MODE);                    \
+          _cr_Texture_shader_##SHADING_MODE(SAMPLING_MODE, 0);                 \
         }                                                                      \
         CR_IFOMPLOCK(omp_unset_lock(lock));                                    \
         cr_Vec3_ADD_INPLACE(b, deltax);                                        \

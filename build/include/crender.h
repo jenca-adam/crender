@@ -297,6 +297,12 @@ static inline cr_Vec3 cr_Vec3_normal_from_color(cr_Vec3 color) {
                    -(color.y / (cr_num)127.5) + 1,
                    -(color.z / (cr_num)127.5) + 1};
 }
+static inline cr_Vec3 cr_Vec3_normal_as_color(cr_Vec3 normal) {
+  return (cr_Vec3){(1 - normal.x) * (cr_num)127.5,
+                   (1 - normal.y) * (cr_num)127.5,
+                   (1 - normal.z) * (cr_num)127.5};
+}
+
 static inline void cr_Vec3_normalize(cr_Vec3 *v) {
   cr_num l = cr_Vec3_length(*v);
   v->x /= l;
@@ -311,6 +317,7 @@ cr_Matrix cr_Matrix_matmul(cr_Matrix m1, cr_Matrix m2);
 cr_Matrix cr_Matrix_projection(cr_num camz, cr_num fov, cr_num aspect);
 cr_Matrix cr_Matrix_viewport(cr_num x, cr_num y, cr_num w, cr_num h, cr_num d);
 cr_Matrix cr_Matrix_from_vector(cr_Vec3 v);
+cr_Matrix cr_Matrix_from_vectors(cr_Vec3 v0, cr_Vec3 v1, cr_Vec3 v2);
 cr_Matrix cr_Matrix_rotz(cr_num theta);
 cr_Matrix cr_Matrix_roty(cr_num theta);
 cr_Matrix cr_Matrix_rotx(cr_num theta);
@@ -389,9 +396,11 @@ cr_Texture cr_Texture_create(int width, int height, cr_Vec3 color);
 cr_Texture cr_Texture_readPPM(char *fn);
 cr_Texture cr_Texture_readPAM(char *fn);
 cr_Texture cr_Texture_read(char *fn);
-void cr_Texture_writePPM(cr_Texture texture, char *fn);
+void cr_Texture_writePPM(cr_Texture *texture, char *fn);
 void cr_Texture_dealloc(cr_Texture *texture);
 cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture);
+cr_Texture cr_Texture_bake_object_space_normal_map(cr_Texture *in,
+                                                   cr_Object *object);
 static inline cr_Vec3 cr_trinterpolate(cr_Triangle tri, cr_Vec3 bary) {
   cr_num bx = bary.x, by = bary.y, bz = bary.z;
   return (cr_Vec3){tri.v0.x * bx + tri.v1.x * by + tri.v2.x * bz,
@@ -566,10 +575,10 @@ _cr_Texture_draw_face_FORALL(_cr_Texture_draw_face_DECLH)
 #define Vec3_normalized cr_Vec3_normalized
 #define Vec3_from_matrix cr_Vec3_from_matrix
 #define Vec3_from_matrix3 cr_Vec3_from_matrix3
-#define _pack cr__pack
 #define Vec3_phong cr_Vec3_phong
 #define Vec3_pack_color cr_Vec3_pack_color
 #define Vec3_normal_from_color cr_Vec3_normal_from_color
+#define Vec3_normal_as_color cr_Vec3_normal_as_color
 #define Vec3_normalize cr_Vec3_normalize
 #define trinterpolate cr_trinterpolate
 #define barycentric cr_barycentric
@@ -618,6 +627,8 @@ _cr_Texture_draw_face_FORALL(_cr_Texture_draw_face_DECLH)
 #define Texture_writePPM cr_Texture_writePPM
 #define Texture_dealloc cr_Texture_dealloc
 #define Texture_to_linear cr_Texture_to_linear
+#define Texture_bake_object_space_normal_map                                   \
+  cr_Texture_bake_object_space_normal_map
 #define Entity_create cr_Entity_create
 #define Entity_dealloc cr_Entity_dealloc
 #define Entity_detach_texture cr_Entity_detach_texture
