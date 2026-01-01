@@ -1,5 +1,6 @@
 #include "crender.h"
 #include <errno.h>
+#include <float.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -243,12 +244,11 @@ cr_num apow(cr_num x, uint8_t n) {
   cr_num r = 1.0;
   for (int i = 1; i < 8; i++) {
     p[i] = p[i - 1] * p[i - 1];
-    if ((n >> i) & 1) {
-      r *= p[i];
-    }
+    r *= 1 + (!!((n >> i) & 1)) * (p[i] - 1);
   }
   return r;
 }
+
 void cr_Texture_dealloc_ref(cr_Texture *texture) {
   if (!texture->m)
     return;
@@ -313,9 +313,9 @@ cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture) {
       return false;                                                            \
     }                                                                          \
     if (!cr_Face_gettri(face, obj, NORMAL, &vns) && !normal_map) {             \
-      n = cr_Vec3_normalized(                                                  \
+      if(CR_CFG_NO_BFCULL) {n = cr_Vec3_normalized(                                                  \
           cr_Vec3_cross(cr_Vec3_sub(raw_tri.v2, raw_tri.v0),                   \
-                        cr_Vec3_sub(raw_tri.v1, raw_tri.v0)));                 \
+                        cr_Vec3_sub(raw_tri.v1, raw_tri.v0)));}                 \
       has_vns = false;                                                         \
       vns = cr_Triangle_create(n, n, n);                                       \
     }                                                                          \
@@ -345,17 +345,26 @@ cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture) {
     cr_Vec3 deltay = cr_Vec3_sub(                                              \
         cr_barycentric(tri.v0, tri.v1, tri.v2, minx, miny + 1, bary_denom),    \
         bbase);                                                                \
+    cr_num rayx = deltax.x != 0 ? (cr_num)1.0 / deltax.x : 0;                  \
+    cr_num rayy = deltax.y != 0 ? (cr_num)1.0 / deltax.y : 0;                  \
+    cr_num rayz = deltax.z != 0 ? (cr_num)1.0 / deltax.z : 0;                  \
     for (int y = miny; y <= maxy; y++) {                                       \
       cr_Vec3 b = bbase;                                                       \
-      for (int x = minx; x <= maxx; x++) {                                     \
+      /* compute the bounds from barycentric coordinates*/                     \
+      cr_num tx = (-b.x * rayx), ty = (-b.y * rayy), tz = (-b.z * rayz);       \
+      cr_num tinx = cr_clamplo(copysign(tx, -b.x), 0);                         \
+      cr_num tiny = cr_clamplo(copysign(ty, -b.y), 0);                         \
+      cr_num tinz = cr_clamplo(copysign(tz, -b.z), 0);                         \
+      int tin = ceilf(cr_fmax3(tinx, tiny, tinz));                             \
+      cr_Vec3_ADD_INPLACE3(b, deltax.x * tin, deltax.y * tin, deltax.z * tin); \
+      for (int x = minx + tin; x <= maxx; x++) {                               \
         cr_NUM_INT_TYPE ibx, iby, ibz;                                         \
         cr_NUM_INT_CAST(b.x, ibx);                                             \
         cr_NUM_INT_CAST(b.y, iby);                                             \
         cr_NUM_INT_CAST(b.z, ibz);                                             \
         cr_NUM_INT_TYPE inside = ibx | iby | ibz;                              \
         if (inside < 0) {                                                      \
-          cr_Vec3_ADD_INPLACE(b, deltax);                                      \
-          continue;                                                            \
+          break;                                                               \
         }                                                                      \
         cr_num iz = iw0 * b.x + iw1 * b.y + iw2 * b.z;                         \
         cr_num z = iz;                                                         \

@@ -69,7 +69,7 @@ crender: $(CRENDER_CFG_IN) $(CRENDER_HDR) $(CRENDER_DYNLIB) $(CRENDER_STLIB)
 $(CRENDER_CFG_IN): _FORCE
 	echo "#ifndef _CRENDER_CFG_H" > $@
 	echo "#define _CRENDER_CFG_H" >> $@
-	echo "#define CR_CFG_NO_BFCULL 1" >> $@
+	echo "#define CR_CFG_NO_BFCULL 0" >> $@
 ifeq ($(NUM_SIZE),double)
 	echo "#define CR_CFG_NUM_DOUBLE 1" >> $@
 endif
