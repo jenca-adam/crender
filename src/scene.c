@@ -97,6 +97,7 @@ cr_Scene cr_Scene_create(cr_SceneSettings settings) {
   sc.valid = true;
   sc.world_transform = cr_Matrix_identity(4);
   sc.inverse_world_transform = cr_Matrix_identity(4);
+  sc.default_texture = cr_Texture_create(16, 16, (cr_Vec3){128, 128, 128});
   return sc;
 }
 
@@ -215,17 +216,22 @@ void cr_Scene_render(cr_Scene *s, int num_threads) {
   for (size_t i = 0; i < s->entities.count; i++) {
     cr_Entity entity = *s->entities.items[i];
     cr_Object *ob = entity.ob;
-    cr_Texture *diffuse = entity.ts.diffuse;
+    cr_Texture *diffuse = (entity.ts.diffuse && entity.ts.diffuse->valid)
+                              ? entity.ts.diffuse
+                              : &s->default_texture;
     if (!diffuse) {
       continue;
     }
-    cr_Texture *normal_map = use_normal_map && entity.ts.normal_map->valid
-                                 ? entity.ts.normal_map
-                                 : NULL;
+    cr_Texture *normal_map =
+        (use_normal_map && entity.ts.normal_map && entity.ts.normal_map->valid)
+            ? entity.ts.normal_map
+            : NULL;
     cr_Texture_draw_face_tp cr_Texture_draw_face =
         _select_draw_face_function(shading_mode, sampling_mode, !!normal_map);
     cr_Texture *specular_map =
-        entity.ts.specular_map->valid ? entity.ts.specular_map : NULL;
+        (entity.ts.specular_map && entity.ts.specular_map->valid)
+            ? entity.ts.specular_map
+            : &s->default_texture;
     cr_Matrix t = cr_Matrix_matmul(s->world_transform, entity.transform);
 #if !CR_CFG_NO_MULTITHREAD
 #pragma omp parallel for schedule(cr_SCHEDULE)
@@ -265,5 +271,6 @@ void cr_Scene_dealloc(cr_Scene *s) {
   cr_Matrix_dealloc(&s->viewport);
   cr_Matrix_dealloc(&s->world_transform);
   cr_Matrix_dealloc(&s->inverse_world_transform);
+  cr_Texture_dealloc(&s->default_texture);
   *s = (cr_Scene){0};
 }

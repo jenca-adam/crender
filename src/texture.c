@@ -269,11 +269,7 @@ cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture) {
 // I LOVE C
 
 #define _cr_Texture_shader_PHONG(SAMPLING_MODE, ...)                           \
-  if (!specular_map) {                                                         \
-    specpow = 2;                                                               \
-  } else {                                                                     \
-    specpow = cr_Texture_getuv_##SAMPLING_MODE(specular_map, uv).x;            \
-  }                                                                            \
+  specpow = cr_Texture_getuv_##SAMPLING_MODE(specular_map, uv).x;              \
   spec = apow(fmax(d, 0.0), specpow);                                          \
   cr_num intensity = d + spec * .6;                                            \
   texture[(int)(tw * (th - y - 1) + x)] =                                      \
