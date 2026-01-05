@@ -6,9 +6,9 @@ const char *argp_program_bug_address = "<jenca.adam@gmail.com>";
 static char doc[] = "A combined baking utility for crender";
 static char args_doc[] = "[FILE] ...";
 static struct argp_option options[] = {
-    { "output", 'o', "FILE", OPTION_ARG_OPTIONAL, "Write output to FILE instead of out.ppm", 0},
+    { "output", 'o', "FILE", 0, "Write output to FILE instead of out.ppm", 0},
      { 0, 0, 0, 0, "Modes", 0},
-    { "normal-map" , 'n', "OBJECT", OPTION_ARG_OPTIONAL, "Bake object space normal map from a tangent space normal map", 1},
+    { "normal-map" , 'n', "OBJECT", 0, "Bake object space normal map from a tangent space normal map", 1},
     {0}
 };
 struct args {
@@ -56,7 +56,9 @@ int crbake_normal_map(char *infile, char *objfile, char *outfile){
     cr_ASSERT(objfile!=NULL, "");
     outfile = outfile?outfile:"out.ppm";
     cr_Texture normal_map = cr_Texture_readPPM(infile);
+    if (!normal_map.valid) return 1;
     cr_Object object = cr_Object_fromOBJ(objfile);
+    if (!object.valid) return 1;
     cr_Texture baked = cr_Texture_bake_object_space_normal_map(&normal_map, &object);
     cr_Texture_writePPM(&baked,outfile);
     return 0;
