@@ -262,62 +262,9 @@ cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture) {
   }
   return t;
 }
-bool _tangent_space_basis(cr_Vec3 v0, cr_Vec3 v1, cr_Vec3 v2, cr_Vec3 bn,
-                          cr_Vec3 uv0, cr_Vec3 uv1, cr_Vec3 uv2, cr_Vec3 *i,
-                          cr_Vec3 *j) {
-  cr_Matrix mat =
-      cr_Matrix_from_vectors(cr_Vec3_sub(v1, v0), cr_Vec3_sub(v2, v0), bn);
-  cr_Matrix mati = cr_Matrix_inverse(mat);
-  if (!mati.valid) {
-    *i = (cr_Vec3){0};
-    *j = (cr_Vec3){0};
-    cr_Matrix_dealloc(&mat);
-    return false;
-  }
-  cr_Vec3 uvvecx = {uv1.x - uv0.x, uv2.x - uv0.x, 0};
-  cr_Vec3 uvvecy = {uv1.y - uv0.y, uv2.y - uv0.y, 0};
-  *i = cr_Vec3_normalized(cr_Vec3_transform3(uvvecx, mati));
-  *j = cr_Vec3_normalized(cr_Vec3_transform3(uvvecy, mati));
-  cr_Matrix_dealloc(&mat);
-  cr_Matrix_dealloc(&mati);
-  return true;
-}
-cr_Vec3 cr_Triangle_get_tangent(cr_Triangle vs, cr_Triangle uvs) {
-  cr_Vec3 v0 = vs.v0, v1 = vs.v1, v2 = vs.v2, uv0 = uvs.v0, uv1 = uvs.v1,
-          uv2 = uvs.v2;
-  cr_Vec3 e1 = cr_Vec3_sub(v1, v0), e2 = cr_Vec3_sub(v2, v0);
-  cr_Vec3 uve1 = cr_Vec3_sub(uv1, uv0), uve2 = cr_Vec3_sub(uv2, uv0);
-  cr_num r = (uve1.x * uve2.y - uve1.y * uve2.x);
-  if (fabs(r) < cr_EPSILON)
-    r = 1.0;
-  r = 1.0 / r;
-  return cr_Vec3_normalized(cr_Vec3_mul(
-      cr_Vec3_sub(cr_Vec3_mul(e1, uve2.y), cr_Vec3_mul(e2, uve1.y)), r));
-}
-void cr_Object_compute_vertex_tangents(cr_Object *object,
-                                       cr_Vec3 *out_tangents) {
-  for (size_t i = 0; i < object->vertices.count; i++)
-    out_tangents[i] = (cr_Vec3){0, 0, 0};
-
-  for (size_t i = 0; i < object->faces.count; i++) {
-    cr_Face *face = &object->faces.items[i];
-    cr_Triangle vs, uvs;
-    if (!cr_Face_gettri(face, object, VERTEX, &vs))
-      continue;
-    if (!cr_Face_gettri(face, object, UV, &uvs))
-      continue;
-
-    cr_Vec3 tri_tangent = cr_Triangle_get_tangent(vs, uvs);
-    for (int j = 0; j < 3; j++) {
-      int vi = face->vs[i];
-      out_tangents[vi - 1] = cr_Vec3_add(out_tangents[vi - 1], tri_tangent);
-    }
-  }
-  for (size_t i = 0; i < object->vertices.count; i++)
-    out_tangents[i] = cr_Vec3_normalized(out_tangents[i]);
-}
 cr_Texture cr_Texture_bake_object_space_normal_map(cr_Texture *in,
                                                    cr_Object *object) {
+  cr_REQUIRE_INIT;
   cr_ASSERT(in->valid, "invalid texture");
   cr_Texture out = cr_Texture_alloc(in->width, in->height);
   cr_Vec3 *vertex_tangents = malloc(sizeof(cr_Vec3) * object->vertices.count);
@@ -354,10 +301,9 @@ cr_Texture cr_Texture_bake_object_space_normal_map(cr_Texture *in,
                                  (scaled_uvs.v1.y - scaled_uvs.v0.y) -
                              (scaled_uvs.v1.x - scaled_uvs.v0.x) *
                                  (scaled_uvs.v2.y - scaled_uvs.v0.y));
-    cr_Triangle vt;
-    vt.v0 = vertex_tangents[face->vs[0]];
-    vt.v1 = vertex_tangents[face->vs[1]];
-    vt.v2 = vertex_tangents[face->vs[2]];
+    cr_Triangle vt = {vertex_tangents[face->vs[0] - 1],
+                      vertex_tangents[face->vs[1] - 1],
+                      vertex_tangents[face->vs[2] - 1]};
     for (int y = miny; y <= maxy; y++) {
       for (int x = minx; x <= maxx; x++) {
         cr_Vec3 bary = cr_barycentric(scaled_uvs.v0, scaled_uvs.v1,
@@ -367,15 +313,18 @@ cr_Texture cr_Texture_bake_object_space_normal_map(cr_Texture *in,
           continue;
         cr_Vec3 normal = cr_trinterpolate(vns, bary);
         cr_Vec3 tangent = cr_trinterpolate(vt, bary);
-        cr_Vec3 bitangent = cr_Vec3_normalized(cr_Vec3_cross(tangent, normal));
-        cr_Matrix tbn_mat = cr_Matrix_from_vectors(tangent, bitangent, normal);
+        tangent = cr_Vec3_normalized(cr_Vec3_sub(
+            tangent, cr_Vec3_mul(normal, cr_Vec3_dot(tangent, normal))));
+        cr_Vec3 bitangent = cr_Vec3_normalized(cr_Vec3_cross(normal, tangent));
+        cr_Matrix tbn_mat =
+            cr_Matrix_from_vectors_transposed(tangent, bitangent, normal);
         cr_Vec3 tangent_space_normal = cr_Vec3_normal_from_color(
             cr_Texture_getuv_FLOOR(in, (cr_Vec3){(cr_num)x / in->width,
                                                  (cr_num)y / in->height, 0}));
         cr_Vec3 object_space_normal = cr_Vec3_normalized(
             cr_Vec3_transform3(tangent_space_normal, tbn_mat));
         out.m[out.width * (out.height - y - 1) + x] =
-            cr_Vec3_normal_as_color(tangent);
+            cr_Vec3_normal_as_color(object_space_normal);
       }
     }
   }

@@ -1,11 +1,10 @@
 #include "crender.h"
 #include <errno.h>
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-cr_Object cr_Object_new() {
+cr_Object cr_Object_new(void) {
   cr_REQUIRE_INIT cr_Object object = {0};
   object.vertices = (cr_Vec3_dynarr){0};
   object.uvs = (cr_Vec3_dynarr){0};
@@ -14,7 +13,6 @@ cr_Object cr_Object_new() {
   object.valid = true;
   return object;
 }
-// TODO DYNAMIC ARRAYS!!!!
 void cr_Object_add_vertex(cr_Object *object, cr_Vec3 vertex) {
   cr_DYNARR_PUSH(&object->vertices, vertex);
 }
@@ -27,23 +25,50 @@ void cr_Object_add_normal(cr_Object *object, cr_Vec3 normal) {
 void cr_Object_add_face(cr_Object *object, cr_Face face) {
   cr_DYNARR_PUSH(&object->faces, face);
 }
-cr_Vec3 read_vec3(FILE *fp) {
+
+void cr_Object_compute_vertex_tangents(cr_Object *object,
+                                       cr_Vec3 *out_tangents) {
+  for (size_t i = 0; i < object->vertices.count; i++) {
+    out_tangents[i] = (cr_Vec3){0, 0, 0};
+  }
+  for (size_t i = 0; i < object->faces.count; i++) {
+    cr_Face *face = &object->faces.items[i];
+    cr_Triangle vs, uvs;
+    if (!cr_Face_gettri(face, object, VERTEX, &vs))
+      continue;
+    if (!cr_Face_gettri(face, object, UV, &uvs))
+      continue;
+    cr_Vec3 tri_tangent = cr_Triangle_get_tangent(vs, uvs);
+    for (int j = 0; j < 3; j++) {
+      int vi = face->vs[j] - 1;
+      cr_Vec3_ADD_INPLACE(out_tangents[vi], tri_tangent);
+    }
+  }
+  for (size_t i = 0; i < object->vertices.count; i++) {
+    if (cr_Vec3_length(out_tangents[i]) > 0)
+      out_tangents[i] = cr_Vec3_normalized(out_tangents[i]);
+  }
+}
+
+bool read_vec3(FILE *fp, cr_Vec3 *v) {
   char buffer[1024];
   cr_num x = 0;
   cr_num y = 0;
   cr_num z = 0;
   if (fgets(buffer, sizeof(buffer), fp)) {
     sscanf(buffer, cr_NUM_FMT " " cr_NUM_FMT " " cr_NUM_FMT, &x, &y, &z);
-    return cr_Vec3_create(x, y, z);
+    *v = cr_Vec3_create(x, y, z);
+    return true;
   }
-  return cr_Vec3_create(NAN, NAN, NAN);
+  return false;
 }
-void read_face_vinfo(char *vinfo, int *vindex, int *uvindex, int *nindex) {
+void read_face_vinfo(char *vinfo, size_t *vindex, size_t *uvindex,
+                     size_t *nindex) {
   size_t size = strlen(vinfo);
   FILE *stream = fmemopen(vinfo, size, "rb");
   for (int i = 0; i < 3;) {
-    int q;
-    if (fscanf(stream, "%d", &q) == 1) {
+    size_t q;
+    if (fscanf(stream, "%zu", &q) == 1) {
       switch (i) {
       case 0:
         *vindex = q;
@@ -74,6 +99,7 @@ void read_face_vinfo(char *vinfo, int *vindex, int *uvindex, int *nindex) {
   }
   fclose(stream);
 }
+
 bool read_face(FILE *fp, cr_Object *obj, cr_Face *face) {
 
   char vinfos[3][512];
@@ -90,16 +116,16 @@ bool read_face(FILE *fp, cr_Object *obj, cr_Face *face) {
     face->vns[i] = 0;
     read_face_vinfo(vinfos[i], &face->vs[i], &face->vts[i], &face->vns[i]);
     if (face->vs[i] > obj->vertices.count) {
-      cr_ERROR("corrupted object file! vertex index %d out of bounds for a "
+      cr_ERROR("corrupted object file! vertex index %zu out of bounds for a "
                "model with %zu vertices",
                face->vs[i], obj->vertices.count);
     }
     if (face->vts[i] > obj->uvs.count) {
-      cr_ERROR("Corrupted object file! UV index %d out of bounds for a model "
+      cr_ERROR("Corrupted object file! UV index %zu out of bounds for a model "
                "with %zu UVs",
                face->vts[i], obj->uvs.count);
       if (face->vns[i] > obj->normals.count) {
-        cr_ERROR("Corrupted object file! Vertex normal index %d out of bounds "
+        cr_ERROR("Corrupted object file! Vertex normal index %zu out of bounds "
                  "for a model with %zu vertex normals",
                  face->vns[i], obj->normals.count);
       }
@@ -118,27 +144,23 @@ cr_Object cr_Object_fromOBJ(char *fn) {
   }
   cr_Object object = cr_Object_new();
   cr_Vec3 arg;
-  cr_Face farg;
   char line_type[64];
   while (1) {
     if (fscanf(fp, "%s ", line_type) != 1) {
       break;
     }
     if (!strcmp(line_type, "v")) {
-      arg = read_vec3(fp);
-      if (arg.x == NAN) {
+      if (!read_vec3(fp, &arg)) {
         break;
       }
       cr_Object_add_vertex(&object, arg);
     } else if (!strcmp(line_type, "vt")) {
-      arg = read_vec3(fp);
-      if (arg.x == NAN) {
+      if (!read_vec3(fp, &arg)) {
         break;
       }
       cr_Object_add_uv(&object, arg);
     } else if (!strcmp(line_type, "vn")) {
-      arg = read_vec3(fp);
-      if (arg.x == NAN) {
+      if (!read_vec3(fp, &arg)) {
         break;
       }
       cr_Object_add_normal(&object, arg);

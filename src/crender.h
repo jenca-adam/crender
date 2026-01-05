@@ -318,6 +318,7 @@ cr_Matrix cr_Matrix_projection(cr_num camz, cr_num fov, cr_num aspect);
 cr_Matrix cr_Matrix_viewport(cr_num x, cr_num y, cr_num w, cr_num h, cr_num d);
 cr_Matrix cr_Matrix_from_vector(cr_Vec3 v);
 cr_Matrix cr_Matrix_from_vectors(cr_Vec3 v0, cr_Vec3 v1, cr_Vec3 v2);
+cr_Matrix cr_Matrix_from_vectors_transposed(cr_Vec3 v0, cr_Vec3 v1, cr_Vec3 v2);
 cr_Matrix cr_Matrix_rotz(cr_num theta);
 cr_Matrix cr_Matrix_roty(cr_num theta);
 cr_Matrix cr_Matrix_rotx(cr_num theta);
@@ -335,9 +336,9 @@ cr_num cr_Vec3_get_item(cr_Vec3 v, int i);
 cr_Vec4 cr_Vec4_transform(cr_Vec3 v, cr_Matrix m);
 
 typedef struct cr_Face {
-  int vs[3]; // non-triangular faces are not supported
-  int vts[3];
-  int vns[3];
+  size_t vs[3]; // non-triangular faces are not supported
+  size_t vts[3];
+  size_t vns[3];
 } cr_Face;
 typedef struct cr_Vec3_dynarr {
   cr_Vec3 *items;
@@ -361,11 +362,13 @@ typedef enum cr_FaceTriType {
   UV = 1,
   NORMAL = 2,
 } cr_FaceTriType;
-cr_Object cr_Object_new();
+cr_Object cr_Object_new(void);
 void cr_Object_add_vertex(cr_Object *object, cr_Vec3 vertex);
 void cr_Object_add_uv(cr_Object *object, cr_Vec3 uv);
 void cr_Object_add_normal(cr_Object *object, cr_Vec3 normal);
 void cr_Object_add_face(cr_Object *object, cr_Face face);
+void cr_Object_compute_vertex_tangents(cr_Object *object,
+                                       cr_Vec3 *out_tangents);
 void cr_Object_dealloc(cr_Object *object);
 cr_Object cr_Object_fromOBJ(char *fn);
 
@@ -380,6 +383,7 @@ cr_Triangle cr_Triangle_transform(cr_Triangle tri, cr_Matrix transform);
 cr_Triangle cr_Triangle_transform3(cr_Triangle tri, cr_Matrix transform);
 cr_Triangle cr_Triangle_transform4(cr_Triangle tri, cr_Matrix transform,
                                    cr_Vec3 *ws);
+cr_Vec3 cr_Triangle_get_tangent(cr_Triangle vs, cr_Triangle uvs);
 cr_Triangle cr_Triangle_create(cr_Vec3 v0, cr_Vec3 v1, cr_Vec3 v2);
 
 bool cr_Face_gettri(cr_Face *face, cr_Object *obj, cr_FaceTriType tt,

@@ -118,6 +118,20 @@ cr_Matrix cr_Matrix_from_vectors(cr_Vec3 v0, cr_Vec3 v1, cr_Vec3 v2) {
   mat.m[2][2] = v2.z;
   return mat;
 }
+cr_Matrix cr_Matrix_from_vectors_transposed(cr_Vec3 v0, cr_Vec3 v1,
+                                            cr_Vec3 v2) {
+  cr_Matrix mat = cr_Matrix_empty(3, 3);
+  mat.m[0][0] = v0.x;
+  mat.m[1][0] = v0.y;
+  mat.m[2][0] = v0.z;
+  mat.m[0][1] = v1.x;
+  mat.m[1][1] = v1.y;
+  mat.m[2][1] = v1.z;
+  mat.m[0][2] = v2.x;
+  mat.m[1][2] = v2.y;
+  mat.m[2][2] = v2.z;
+  return mat;
+}
 cr_Matrix cr_Matrix_rotz(cr_num theta) {
   cr_Matrix mat = cr_Matrix_identity(4);
   mat.m[0][0] = cos(theta);
@@ -385,4 +399,7 @@ void cr_Matrix_print(cr_Matrix m) {
     }
     printf("\n");
   }
+}
+cr_num cr_Vec3_dot_(cr_Vec3 v1, cr_Vec3 v2) {
+  return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
 }
