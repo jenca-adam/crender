@@ -57,7 +57,7 @@ int crbake_normal_map(char *infile, char *objfile, char *outfile){
     outfile = outfile?outfile:"out.ppm";
     cr_Texture normal_map = cr_Texture_readPPM(infile);
     if (!normal_map.valid) return 1;
-    cr_Object object = cr_Object_fromOBJ(objfile);
+    cr_Object object = cr_Object_fromOBJ(objfile, NONE);
     if (!object.valid) return 1;
     cr_Texture baked = cr_Texture_bake_object_space_normal_map(&normal_map, &object);
     cr_Texture_writePPM(&baked,outfile);
@@ -65,6 +65,7 @@ int crbake_normal_map(char *infile, char *objfile, char *outfile){
 }
 int main(int argc, char *argv[]){
     cr_INIT_CRENDER();
+
     struct args args = {0, NULL, 0, "out.ppm"};
     argp_parse(&argp, argc, argv, 0, 0, &args);
     switch(args.mode){

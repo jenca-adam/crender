@@ -4,6 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+// TODO: size_t can overflow!!
+// FIXME
+
 cr_Object cr_Object_new(void) {
   cr_REQUIRE_INIT cr_Object object = {0};
   object.vertices = (cr_Vec3_dynarr){0};
@@ -28,19 +31,16 @@ void cr_Object_add_face(cr_Object *object, cr_Face face) {
 
 void cr_Object_compute_vertex_tangents(cr_Object *object,
                                        cr_Vec3 *out_tangents) {
-  for (size_t i = 0; i < object->vertices.count; i++) {
-    out_tangents[i] = (cr_Vec3){0, 0, 0};
-  }
   for (size_t i = 0; i < object->faces.count; i++) {
-    cr_Face *face = &object->faces.items[i];
+    cr_Face face = object->faces.items[i];
     cr_Triangle vs, uvs;
-    if (!cr_Face_gettri(face, object, VERTEX, &vs))
+    if (!cr_Face_gettri(&face, object, VERTEX, &vs))
       continue;
-    if (!cr_Face_gettri(face, object, UV, &uvs))
+    if (!cr_Face_gettri(&face, object, UV, &uvs))
       continue;
     cr_Vec3 tri_tangent = cr_Triangle_get_tangent(vs, uvs);
     for (int j = 0; j < 3; j++) {
-      int vi = face->vs[j] - 1;
+      size_t vi = face.vs[j] - 1;
       cr_Vec3_ADD_INPLACE(out_tangents[vi], tri_tangent);
     }
   }
@@ -50,6 +50,35 @@ void cr_Object_compute_vertex_tangents(cr_Object *object,
   }
 }
 
+void cr_Object_compute_smooth_normals(cr_Object *object, cr_Vec3 *out_normals) {
+  for (size_t i = 0; i < object->faces.count; i++) {
+    cr_Face face = object->faces.items[i];
+    cr_Triangle vs;
+    if (!cr_Face_gettri(&face, object, VERTEX, &vs))
+      continue;
+    cr_Vec3 tri_normal =
+        cr_Vec3_mul(cr_Triangle_get_normal(vs), cr_Triangle_get_area(vs));
+    for (int j = 0; j < 3; j++) {
+      size_t vi = face.vs[j] - 1;
+      cr_Vec3_ADD_INPLACE(out_normals[vi], tri_normal);
+    }
+  }
+  for (size_t i = 0; i < object->vertices.count; i++) {
+    if (cr_Vec3_length(out_normals[i]) > 0)
+      out_normals[i] = cr_Vec3_normalized(out_normals[i]);
+  }
+}
+
+void cr_Object_compute_flat_normals(cr_Object *object, cr_Vec3 *out_normals) {
+  for (size_t i = 0; i < object->faces.count; i++) {
+    cr_Face face = object->faces.items[i];
+    cr_Triangle vs;
+    if (!cr_Face_gettri(&face, object, VERTEX, &vs))
+      continue;
+    cr_Vec3 tri_normal = cr_Triangle_get_normal(vs);
+    out_normals[i] = tri_normal;
+  }
+}
 bool read_vec3(FILE *fp, cr_Vec3 *v) {
   char buffer[1024];
   cr_num x = 0;
@@ -133,7 +162,7 @@ bool read_face(FILE *fp, cr_Object *obj, cr_Face *face) {
   }
   return true;
 }
-cr_Object cr_Object_fromOBJ(char *fn) {
+cr_Object cr_Object_fromOBJ(char *fn, cr_NormalPrecompMode precompute_mode) {
 
   FILE *fp = fopen(fn, "rb");
 
@@ -159,7 +188,7 @@ cr_Object cr_Object_fromOBJ(char *fn) {
         break;
       }
       cr_Object_add_uv(&object, arg);
-    } else if (!strcmp(line_type, "vn")) {
+    } else if (!strcmp(line_type, "vn") && precompute_mode == NONE) {
       if (!read_vec3(fp, &arg)) {
         break;
       }
@@ -182,6 +211,40 @@ cr_Object cr_Object_fromOBJ(char *fn) {
     fprintf(stderr, "cr_Object_fromOBJ: object %s is not uv-mapped!", fn);
     cr_Object_dealloc(&object);
     return (cr_Object){0};
+  }
+  if (!object.normals.count && precompute_mode == NONE) {
+    precompute_mode = FLAT;
+  }
+  switch (precompute_mode) {
+  case SMOOTH:
+    cr_DYNARR_DEALLOC(object.normals);
+    cr_Vec3 *smooth_ns = calloc(object.vertices.count, sizeof(*smooth_ns));
+    cr_Object_compute_smooth_normals(&object, smooth_ns);
+    cr_DYNARR_FROMARR(&object.normals, smooth_ns, object.vertices.count);
+    free(smooth_ns);
+    // we need to update faces to point to new normals
+    for (size_t i = 0; i < object.faces.count; i++) {
+      cr_Face *f = &object.faces.items[i];
+      f->vns[0] = f->vs[0];
+      f->vns[1] = f->vs[1];
+      f->vns[2] = f->vs[2];
+    }
+    break;
+  case FLAT:
+    cr_DYNARR_DEALLOC(object.normals);
+    cr_Vec3 *flat_ns = calloc(object.faces.count, sizeof(*flat_ns));
+    cr_Object_compute_flat_normals(&object, flat_ns);
+    cr_DYNARR_FROMARR(&object.normals, flat_ns, object.faces.count);
+    free(flat_ns);
+    for (size_t i = 0; i < object.faces.count; i++) {
+      cr_Face *f = &object.faces.items[i];
+      f->vns[0] = i + 1;
+      f->vns[1] = i + 1;
+      f->vns[2] = i + 1;
+    }
+    break;
+  default:
+    break;
   }
   fclose(fp);
   return object;

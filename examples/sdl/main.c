@@ -49,7 +49,7 @@ char *join_dirs(char *dirname, char *path) {
 bool load_object_from_dir(char *dirname, Object *object, Texture *diffuse,
                           Texture *normal_map, Texture *specular_map) {
   char *object_fname = join_dirs(dirname, "obj.obj");
-  Object ob = Object_fromOBJ(object_fname);
+  Object ob = Object_fromOBJ(object_fname, NONE);
   free(object_fname);
   if (!ob.valid) {
     return false;
@@ -82,7 +82,6 @@ int main(int argc, char *argv[]) {
     return 1;
   }
   char *dirname = argv[1];
-  char *dirname2 = argc >= 3 ? argv[2] : dirname;
   Vec3 light_dir = {0, 0, -1};
   SceneSettings settings = {
       .shading_mode = PHONG,
@@ -199,6 +198,7 @@ int main(int argc, char *argv[]) {
                                 using_other ? &other_texture : &main_diffuse);
           break;
         case 'r':
+          {} // shut up dumbass compiler
           Matrix transform = Matrix_identity(4);
           Entity_set_transform(&main_entity, transform);
           Matrix_dealloc(&transform);

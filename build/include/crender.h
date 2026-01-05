@@ -188,6 +188,16 @@ typedef void omp_lock_t;
     }                                                                          \
     (arr)->count--;                                                            \
   } while (0)
+#define cr_DYNARR_FROMARR(target, source, new_count)                           \
+  do {                                                                         \
+    (target)->count = new_count;                                               \
+    (target)->capacity = cr_DYNARR_BASE_CAPACITY;                              \
+    while ((target)->capacity < (target)->count) {                             \
+      (target)->capacity *= 2;                                                 \
+    }                                                                          \
+    (target)->items = calloc((target)->capacity, sizeof(*(target)->items));    \
+    memcpy((target)->items, source, new_count * sizeof(*source));              \
+  } while (0)
 #define cr_DYNARR_DEALLOC(arr) free(arr.items)
 extern int _cr_abi_tag;
 extern bool cr_crender_initted;
@@ -362,6 +372,11 @@ typedef enum cr_FaceTriType {
   UV = 1,
   NORMAL = 2,
 } cr_FaceTriType;
+typedef enum cr_NormalPrecompMode {
+  NONE = 0,
+  FLAT = 1,
+  SMOOTH = 2
+} cr_NormalPrecompMode;
 cr_Object cr_Object_new(void);
 void cr_Object_add_vertex(cr_Object *object, cr_Vec3 vertex);
 void cr_Object_add_uv(cr_Object *object, cr_Vec3 uv);
@@ -369,8 +384,11 @@ void cr_Object_add_normal(cr_Object *object, cr_Vec3 normal);
 void cr_Object_add_face(cr_Object *object, cr_Face face);
 void cr_Object_compute_vertex_tangents(cr_Object *object,
                                        cr_Vec3 *out_tangents);
+
+void cr_Object_compute_smooth_normals(cr_Object *object, cr_Vec3 *out_normals);
+void cr_Object_compute_flat_normals(cr_Object *object, cr_Vec3 *out_normals);
 void cr_Object_dealloc(cr_Object *object);
-cr_Object cr_Object_fromOBJ(char *fn);
+cr_Object cr_Object_fromOBJ(char *fn, cr_NormalPrecompMode precompute_smooth);
 
 typedef struct cr_Triangle {
   cr_Vec3 v0;
@@ -384,6 +402,14 @@ cr_Triangle cr_Triangle_transform3(cr_Triangle tri, cr_Matrix transform);
 cr_Triangle cr_Triangle_transform4(cr_Triangle tri, cr_Matrix transform,
                                    cr_Vec3 *ws);
 cr_Vec3 cr_Triangle_get_tangent(cr_Triangle vs, cr_Triangle uvs);
+static inline cr_Vec3 cr_Triangle_get_normal(cr_Triangle vs) {
+  cr_Vec3 e1 = cr_Vec3_sub(vs.v1, vs.v0), e2 = cr_Vec3_sub(vs.v2, vs.v0);
+  return cr_Vec3_normalized(cr_Vec3_cross(e1, e2));
+}
+static inline cr_num cr_Triangle_get_area(cr_Triangle t) {
+  return cr_Vec3_length(cr_Vec3_sub(t.v1, t.v0)) *
+         cr_Vec3_length(cr_Vec3_sub(t.v2, t.v0)) * 0.5f;
+}
 cr_Triangle cr_Triangle_create(cr_Vec3 v0, cr_Vec3 v1, cr_Vec3 v2);
 
 bool cr_Face_gettri(cr_Face *face, cr_Object *obj, cr_FaceTriType tt,
@@ -537,6 +563,7 @@ _cr_Texture_draw_face_FORALL(_cr_Texture_draw_face_DECLH)
 #define DYNARR_PUSH cr_DYNARR_PUSH
 #define DYNARR_REMOVE_SWAP_LAST cr_DYNARR_REMOVE_SWAP_LAST
 #define DYNARR_REMOVE_KEEP_ORDER cr_DYNARR_REMOVE_KEEP_ORDER
+#define DYNARR_FROMARR cr_DYNARR_FROMARR
 #define DYNARR_DEALLOC cr_DYNARR_DEALLOC
 #define clamp cr_clamp
 #define clamplo cr_clamplo
@@ -616,12 +643,16 @@ _cr_Texture_draw_face_FORALL(_cr_Texture_draw_face_DECLH)
 #define Object_add_uv cr_Object_add_uv
 #define Object_add_normal cr_Object_add_normal
 #define Object_add_face cr_Object_add_face
+#define Object_compute_vertex_tangents cr_Object_compute_vertex_tangents
+#define Object_compute_vertex_normals cr_Object_compute_vertex_normals
 #define Object_dealloc cr_Object_dealloc
 #define Object_fromOBJ cr_Object_fromOBJ
 #define Triangle_transform cr_Triangle_transform
 #define Triangle_transform3 cr_Triangle_transform3
 #define Triangle_transform4 cr_Triangle_transform4
 #define Triangle_create cr_Triangle_create
+#define Triangle_get_tangent cr_Triangle_get_tangent
+#define Triangle_get_normal cr_Triangle_get_normal
 #define Face_gettri cr_Face_gettri
 #define Face_dealloc cr_Face_dealloc
 #define Texture_create cr_Texture_create

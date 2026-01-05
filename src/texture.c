@@ -209,8 +209,8 @@ static inline cr_Vec3 cr_Texture_getuv_LINEAR(const cr_Texture *restrict t,
                    c00.z * w00 + c10.z * w10 + c01.z * w01 + c11.z * w11};
 }
 
-static inline cr_Vec3 cr_Texture_getuv(const cr_Texture *t, cr_Vec3 uv,
-                                       cr_SamplingMode sampling_mode) {
+cr_Vec3 cr_Texture_getuv(const cr_Texture *t, cr_Vec3 uv,
+                         cr_SamplingMode sampling_mode) {
   switch (sampling_mode) {
   case FLOOR:
     return cr_Texture_getuv_FLOOR(t, uv);
@@ -256,7 +256,7 @@ void cr_Texture_dealloc(cr_Texture *texture) {
   free(texture->m);
 }
 cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture) {
-  cr_Linear_Texture t = malloc(texture.width * texture.height * sizeof(*t));
+  cr_Linear_Texture t = calloc(texture.width * texture.height, sizeof(*t));
   for (int i = 0; i < texture.width * texture.height; i++) {
     t[(int)i] = cr_Vec3_pack_color(texture.m[i]);
   }
@@ -318,9 +318,10 @@ cr_Texture cr_Texture_bake_object_space_normal_map(cr_Texture *in,
         cr_Vec3 bitangent = cr_Vec3_normalized(cr_Vec3_cross(normal, tangent));
         cr_Matrix tbn_mat =
             cr_Matrix_from_vectors_transposed(tangent, bitangent, normal);
-        cr_Vec3 tangent_space_normal = cr_Vec3_normal_from_color(
-            cr_Texture_getuv_FLOOR(in, (cr_Vec3){(cr_num)x / in->width,
-                                                 (cr_num)y / in->height, 0}));
+        cr_Vec3 tangent_space_normal =
+            cr_Vec3_normal_from_color(cr_Texture_getuv_FLOOR(
+                in, (cr_Vec3){(cr_num)x / in->width, (cr_num)y / in->height,
+                              0})); // or index in.m directly?
         cr_Vec3 object_space_normal = cr_Vec3_normalized(
             cr_Vec3_transform3(tangent_space_normal, tbn_mat));
         out.m[out.width * (out.height - y - 1) + x] =
@@ -353,11 +354,12 @@ cr_Texture cr_Texture_bake_object_space_normal_map(cr_Texture *in,
     (void)zbuffer_locks;                                                       \
     cr_Vec3 l = cr_Vec3_transform_dir(light_dir, inverse_transform);           \
     cr_Vec3 ldir = cr_Vec3_normalized(l);                                      \
-    bool has_vns = true;                                                       \
     cr_Triangle raw_tri, uvs, vns;                                             \
-    if (!cr_Face_gettri(face, obj, VERTEX, &raw_tri)) {                        \
-      return false;                                                            \
-    }                                                                          \
+    cr_Face_gettri(face, obj, VERTEX, &raw_tri);                               \
+    cr_Face_gettri(face, obj, UV, &uvs);                                       \
+    cr_Face_gettri(face, obj, NORMAL,                                          \
+                   &vns); /* all three should be present, if the user puts     \
+                             some garbage here, that's on them*/               \
     cr_Triangle world_tri = cr_Triangle_transform(raw_tri, world_transform);   \
     if (world_tri.v0.z > near_plane || world_tri.v1.z > near_plane ||          \
         world_tri.v2.z > near_plane) {                                         \
@@ -373,18 +375,6 @@ cr_Texture cr_Texture_bake_object_space_normal_map(cr_Texture *in,
       if (intensity < -1 - cr_EPSILON) {                                       \
         return false;                                                          \
       }                                                                        \
-    }                                                                          \
-    if (!cr_Face_gettri(face, obj, UV, &uvs)) {                                \
-      return false;                                                            \
-    }                                                                          \
-    if (!cr_Face_gettri(face, obj, NORMAL, &vns) && !normal_map) {             \
-      if (CR_CFG_NO_BFCULL) {                                                  \
-        n = cr_Vec3_normalized(                                                \
-            cr_Vec3_cross(cr_Vec3_sub(raw_tri.v2, raw_tri.v0),                 \
-                          cr_Vec3_sub(raw_tri.v1, raw_tri.v0)));               \
-      }                                                                        \
-      has_vns = false;                                                         \
-      vns = cr_Triangle_create(n, n, n);                                       \
     }                                                                          \
     cr_Vec3 ws;                                                                \
     cr_Triangle tri = cr_Triangle_transform4(raw_tri, transform, &ws);         \
@@ -448,12 +438,8 @@ cr_Texture cr_Texture_bake_object_space_normal_map(cr_Texture *in,
               _interp_correct(uvs.v0, uvs.v1, uvs.v2, b, iw0, iw1, iw2);       \
           cr_Vec3 color = cr_Texture_getuv_##SAMPLING_MODE(diffuse, uv);       \
           if (!HAS_NORMAL_MAP) {                                               \
-            if (has_vns) {                                                     \
-              normal = cr_Vec3_neg(                                            \
-                  _interp_correct(vns.v0, vns.v1, vns.v2, b, iw0, iw1, iw2));  \
-            } else {                                                           \
-              normal = n;                                                      \
-            }                                                                  \
+            normal = cr_Vec3_neg(                                              \
+                _interp_correct(vns.v0, vns.v1, vns.v2, b, iw0, iw1, iw2));    \
           } else {                                                             \
             normal = (cr_Vec3_normal_from_color(                               \
                 cr_Texture_getuv_##SAMPLING_MODE(normal_map, uv)));            \
