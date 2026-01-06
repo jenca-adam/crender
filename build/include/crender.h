@@ -388,7 +388,8 @@ void cr_Object_compute_vertex_tangents(cr_Object *object,
 void cr_Object_compute_smooth_normals(cr_Object *object, cr_Vec3 *out_normals);
 void cr_Object_compute_flat_normals(cr_Object *object, cr_Vec3 *out_normals);
 void cr_Object_dealloc(cr_Object *object);
-cr_Object cr_Object_fromOBJ(char *fn, cr_NormalPrecompMode precompute_smooth);
+bool cr_Object_writeOBJ(cr_Object *object, char *fn);
+cr_Object cr_Object_readOBJ(char *fn, cr_NormalPrecompMode precompute_mode);
 
 typedef struct cr_Triangle {
   cr_Vec3 v0;
@@ -426,7 +427,7 @@ cr_Texture cr_Texture_create(int width, int height, cr_Vec3 color);
 cr_Texture cr_Texture_readPPM(char *fn);
 cr_Texture cr_Texture_readPAM(char *fn);
 cr_Texture cr_Texture_read(char *fn);
-void cr_Texture_writePPM(cr_Texture *texture, char *fn);
+bool cr_Texture_writePPM(cr_Texture *texture, char *fn);
 void cr_Texture_dealloc(cr_Texture *texture);
 cr_Linear_Texture cr_Texture_to_linear(cr_Texture texture);
 cr_Texture cr_Texture_bake_object_space_normal_map(cr_Texture *in,
@@ -581,6 +582,7 @@ _cr_Texture_draw_face_FORALL(_cr_Texture_draw_face_DECLH)
 #define Vec4 cr_Vec4
 #define Matrix cr_Matrix
 #define Face cr_Face
+#define NormalPrecompMode cr_NormalPrecompMode
 #define Object cr_Object
 #define Triangle cr_Triangle
 #define Texture cr_Texture
@@ -644,15 +646,18 @@ _cr_Texture_draw_face_FORALL(_cr_Texture_draw_face_DECLH)
 #define Object_add_normal cr_Object_add_normal
 #define Object_add_face cr_Object_add_face
 #define Object_compute_vertex_tangents cr_Object_compute_vertex_tangents
-#define Object_compute_vertex_normals cr_Object_compute_vertex_normals
+#define Object_compute_smooth_normals cr_Object_compute_vertex_normals
+#define Object_compute_flat_normals cr_Object_compute_vertex_normals
 #define Object_dealloc cr_Object_dealloc
-#define Object_fromOBJ cr_Object_fromOBJ
+#define Object_writeOBJ cr_Object_writeOBJ
+#define Object_readOBJ cr_Object_readOBJ
 #define Triangle_transform cr_Triangle_transform
 #define Triangle_transform3 cr_Triangle_transform3
 #define Triangle_transform4 cr_Triangle_transform4
 #define Triangle_create cr_Triangle_create
 #define Triangle_get_tangent cr_Triangle_get_tangent
 #define Triangle_get_normal cr_Triangle_get_normal
+#define Triangle_get_area cr_Triangle_get_area
 #define Face_gettri cr_Face_gettri
 #define Face_dealloc cr_Face_dealloc
 #define Texture_create cr_Texture_create

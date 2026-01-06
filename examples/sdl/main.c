@@ -49,7 +49,7 @@ char *join_dirs(char *dirname, char *path) {
 bool load_object_from_dir(char *dirname, Object *object, Texture *diffuse,
                           Texture *normal_map, Texture *specular_map) {
   char *object_fname = join_dirs(dirname, "obj.obj");
-  Object ob = Object_fromOBJ(object_fname, NONE);
+  Object ob = Object_readOBJ(object_fname, NONE);
   free(object_fname);
   if (!ob.valid) {
     return false;

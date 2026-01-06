@@ -12,7 +12,7 @@ cr_Texture cr_Texture_alloc(int width, int height) {
   texture.m = malloc(sizeof(cr_Vec3) * width * height);
   texture.valid = true;
   if (!texture.m) {
-    perror("cr_Texture_alloc: malloc() failed");
+    fprintf(stderr, "cr_Texture_alloc: malloc() failed: %s", strerror(errno));
   }
   return texture;
 }
@@ -26,14 +26,15 @@ cr_Texture cr_Texture_create(int width, int height, cr_Vec3 color) {
   return texture;
 }
 
-void cr_Texture_writePPM(cr_Texture *texture, char *fn) {
+bool cr_Texture_writePPM(cr_Texture *texture, char *fn) {
   if (!texture->valid) {
-    return;
+    return false;
   }
   FILE *fp = fopen(fn, "wb");
   if (!fp) {
-    perror("cr_Texture_writePPM: fopen() failed");
-    return;
+    fprintf(stderr, "cr_Texture_writePPM: fopen(%s) failed: %s", fn,
+            strerror(errno));
+    return false;
   }
   fprintf(fp, "P6\n%d %d\n255\n", texture->width, texture->height);
   for (int i = 0; i < texture->width * texture->height; i++) {
@@ -43,6 +44,7 @@ void cr_Texture_writePPM(cr_Texture *texture, char *fn) {
     fputc(color.z, fp);
   }
   fclose(fp);
+  return true;
 }
 cr_Texture cr_Texture_readPPM(char *fn) {
   FILE *fp = fopen(fn, "rb");
@@ -76,7 +78,6 @@ cr_Texture cr_Texture_readPPM(char *fn) {
   }
   cr_Texture texture = cr_Texture_alloc(width, height);
   if (!texture.m) {
-    perror("cr_Texture_readPPM: can't allocate");
     return (cr_Texture){0};
   }
   for (int i = 0; i < width * height; i++) {
@@ -94,77 +95,13 @@ cr_Texture cr_Texture_readPPM(char *fn) {
 
   return texture;
 }
-cr_Texture cr_Texture_readPAM(char *fn) {
-  FILE *fp = fopen(fn, "rb");
-  char mode[3];
-  int width;
-  int height;
-  short depth;
-  unsigned long lmaxn;
-  if (!fp) {
 
-    perror("cr_Texture_readPAM: fopen() failed");
-    abort();
-  }
-  if (!fgets(mode, sizeof(mode), fp)) {
-    fprintf(stderr, "cr_Texture_readPAM: format error");
-    abort();
-  }
-  if (strcmp(mode, "P7")) {
-    fprintf(stderr, "cr_Texture_readPAM: format error");
-    abort();
-  }
-
-  char *tupltype = malloc(32 * sizeof(char));
-  if (fscanf(
-          fp,
-          "\nWIDTH %d\nHEIGHT %d\nDEPTH %hd\nMAXVAL %lu\nTUPLTYPE %s\nENDHDR\n",
-          &width, &height, &depth, &lmaxn, tupltype) != 5) {
-    free(tupltype);
-    errno = EINVAL;
-    fprintf(stderr, "cr_Texture_readPAM: format error");
-    abort();
-  }
-  if (strcmp(tupltype, "RGB_ALPHA")) {
-    free(tupltype);
-    fprintf(stderr, "cr_Texture_readPAM: can only read RGB_ALPHA pams");
-    abort();
-  }
-  free(tupltype);
-  if (depth != 4) {
-    fprintf(stderr, "cr_Texture_readPAM: expected depth 4");
-    abort();
-  }
-  if (lmaxn != 255) {
-    fprintf(stderr, "cr_Texture_readPAM: expected maxval 255");
-    abort();
-  }
-  cr_Texture texture =
-      cr_Texture_create(width, height, cr_Vec3_create(0, 0, 0));
-  if (!texture.m) {
-    abort();
-  }
-  for (int i = 0; i < height; i++) {
-    unsigned char rgb[4];
-    fread(&rgb, 1, 4, fp);
-
-    if (feof(fp)) {
-      cr_Texture_dealloc(&texture);
-      fprintf(stderr, "cr_Texture_readPAM: format error");
-      abort();
-    }
-    texture.m[i] = cr_Vec3_create(rgb[0], rgb[1], rgb[2]);
-  }
-  return texture;
-}
 cr_Texture cr_Texture_read(char *fn) {
   if (strcmp(fn + strlen(fn) - 4, ".ppm") == 0) {
     return cr_Texture_readPPM(fn);
-  } else if (strcmp(fn + strlen(fn) - 4, ".pam") == 0) {
-    return cr_Texture_readPAM(fn);
   } else {
     fprintf(stderr, "cr_Texture_read: unknown file format");
-    abort();
+    return (cr_Texture){0};
   }
 }
 
@@ -288,14 +225,16 @@ cr_Texture cr_Texture_bake_object_space_normal_map(cr_Texture *in,
     cr_Triangle scaled_uvs = {{uvs.v0.x * in->width, uvs.v0.y * in->height, 0},
                               {uvs.v1.x * in->width, uvs.v1.y * in->height, 0},
                               {uvs.v2.x * in->width, uvs.v2.y * in->height, 0}};
-    int minx =
-        fmaxf(0, cr_fmin3(scaled_uvs.v0.x, scaled_uvs.v1.x, scaled_uvs.v2.x));
-    int maxx = fminf(in->width - 1, cr_fmax3(scaled_uvs.v0.x, scaled_uvs.v1.x,
-                                             scaled_uvs.v2.x));
-    int miny =
-        fmaxf(0, cr_fmin3(scaled_uvs.v0.y, scaled_uvs.v1.y, scaled_uvs.v2.y));
-    int maxy = fminf(in->height - 1, cr_fmax3(scaled_uvs.v0.y, scaled_uvs.v1.y,
-                                              scaled_uvs.v2.y));
+    int minx = fmaxf(
+        0, cr_fmin3(scaled_uvs.v0.x, scaled_uvs.v1.x, scaled_uvs.v2.x) - 1);
+    int maxx =
+        fminf(in->width - 1,
+              cr_fmax3(scaled_uvs.v0.x, scaled_uvs.v1.x, scaled_uvs.v2.x) + 1);
+    int miny = fmaxf(
+        0, cr_fmin3(scaled_uvs.v0.y, scaled_uvs.v1.y, scaled_uvs.v2.y) - 1);
+    int maxy =
+        fminf(in->height - 1,
+              cr_fmax3(scaled_uvs.v0.y, scaled_uvs.v1.y, scaled_uvs.v2.y) + 1);
 
     cr_num bary_denom = 1 / ((scaled_uvs.v2.x - scaled_uvs.v0.x) *
                                  (scaled_uvs.v1.y - scaled_uvs.v0.y) -
@@ -319,7 +258,7 @@ cr_Texture cr_Texture_bake_object_space_normal_map(cr_Texture *in,
         cr_Matrix tbn_mat =
             cr_Matrix_from_vectors_transposed(tangent, bitangent, normal);
         cr_Vec3 tangent_space_normal =
-            cr_Vec3_normal_from_color(cr_Texture_getuv_FLOOR(
+            cr_Vec3_normal_from_color(cr_Texture_getuv_LINEAR(
                 in, (cr_Vec3){(cr_num)x / in->width, (cr_num)y / in->height,
                               0})); // or index in.m directly?
         cr_Vec3 object_space_normal = cr_Vec3_normalized(
