@@ -96,7 +96,8 @@ cr_Scene cr_Scene_create(cr_SceneSettings settings) {
   sc.zbuffer_locks = NULL;
   sc.valid = true;
   sc.world_transform = cr_Matrix_identity(4);
-  sc.inverse_world_transform = cr_Matrix_identity(4);
+  sc.model_view = cr_Matrix_identity(4);
+  sc.inverse_model_view = cr_Matrix_identity(4);
   sc.default_texture = cr_Texture_create(16, 16, (cr_Vec3){128, 128, 128});
   return sc;
 }
@@ -132,8 +133,8 @@ void cr_Scene_rebuild_transform(cr_Scene *s) {
                          settings.render_depth);
   cr_Matrix_dealloc(&s->model_view);
   s->model_view = cr_Matrix_model_view(
-      settings.camera.eye, settings.camera.center,
-      settings.camera.up); // s->model_view = cr_Matrix_identity(4);
+      settings.camera.eye, settings.camera.center, settings.camera.up);
+  s->inverse_model_view = cr_Matrix_inverse(s->model_view);
   cr_Matrix m = cr_Matrix_matmul(s->viewport, s->projection);
   cr_Matrix_dealloc(&s->world_transform);
   s->world_transform = cr_Matrix_matmul(m, s->model_view);
@@ -251,6 +252,8 @@ void cr_Scene_render(cr_Scene *s, int num_threads) {
             ? entity.ts.specular_map
             : &s->default_texture;
     cr_Matrix t = cr_Matrix_matmul(s->world_transform, entity.transform);
+    cr_Matrix i =
+        cr_Matrix_matmul(entity.inverse_transform, s->inverse_model_view);
 #if !CR_CFG_NO_MULTITHREAD
 #pragma omp parallel for schedule(cr_SCHEDULE)
 #endif
@@ -258,10 +261,10 @@ void cr_Scene_render(cr_Scene *s, int num_threads) {
       cr_Face *face = &ob->faces.items[fi];
       cr_Texture_draw_face(framebuffer, rw, rh, face, entity.ob, diffuse,
                            normal_map, specular_map, zbuffer, zbuffer_locks,
-                           light_dir, t, entity.transform,
-                           entity.inverse_transform, near_plane);
+                           light_dir, t, entity.transform, i, near_plane);
     }
     cr_Matrix_dealloc(&t);
+    cr_Matrix_dealloc(&i);
   }
 }
 
@@ -288,7 +291,8 @@ void cr_Scene_dealloc(cr_Scene *s) {
   cr_Matrix_dealloc(&s->projection);
   cr_Matrix_dealloc(&s->viewport);
   cr_Matrix_dealloc(&s->world_transform);
-  cr_Matrix_dealloc(&s->inverse_world_transform);
+  cr_Matrix_dealloc(&s->model_view);
+  cr_Matrix_dealloc(&s->inverse_model_view);
   cr_Texture_dealloc(&s->default_texture);
   *s = (cr_Scene){0};
 }

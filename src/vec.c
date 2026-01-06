@@ -58,7 +58,15 @@ cr_Matrix cr_Matrix_matmul(cr_Matrix m1, cr_Matrix m2) {
   }
   return result;
 }
-
+cr_Matrix cr_Matrix_transpose(cr_Matrix m) {
+  cr_Matrix out = cr_Matrix_empty(m.cols, m.rows);
+  for (int i = 0; i < m.rows; i++) {
+    for (int j = 0; j < m.cols; j++) {
+      out.m[j][i] = m.m[i][j];
+    }
+  }
+  return out;
+}
 cr_Matrix cr_Matrix_projection(cr_num near, cr_num fov, cr_num aspect) {
   cr_Matrix mat = cr_Matrix_empty(4, 4);
   cr_num f = 1.0f / tanf(fov * 0.5f);

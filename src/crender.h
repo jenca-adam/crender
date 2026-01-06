@@ -324,6 +324,7 @@ void cr_Matrix_print(cr_Matrix m);
 cr_Matrix cr_Matrix_empty(int rows, int cols);
 cr_Matrix cr_Matrix_identity(int size);
 cr_Matrix cr_Matrix_matmul(cr_Matrix m1, cr_Matrix m2);
+cr_Matrix cr_Matrix_transpose(cr_Matrix m);
 cr_Matrix cr_Matrix_projection(cr_num camz, cr_num fov, cr_num aspect);
 cr_Matrix cr_Matrix_viewport(cr_num x, cr_num y, cr_num w, cr_num h, cr_num d);
 cr_Matrix cr_Matrix_from_vector(cr_Vec3 v);
@@ -523,8 +524,8 @@ typedef struct cr_Scene {
   cr_Matrix projection;
   cr_Matrix viewport;
   cr_Matrix model_view;
+  cr_Matrix inverse_model_view;
   cr_Matrix world_transform;
-  cr_Matrix inverse_world_transform;
   cr_Texture default_texture;
   bool valid;
 } cr_Scene;
