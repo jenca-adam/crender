@@ -77,7 +77,7 @@ $(UTIL_CRBAKE): $(UTIL_CRBAKE_SRC) $(CRENDER_SRC)
 $(CRENDER_CFG_IN): _FORCE
 	echo "#ifndef _CRENDER_CFG_H" > $@
 	echo "#define _CRENDER_CFG_H" >> $@
-	echo "#define CR_CFG_NO_BFCULL 0" >> $@
+	echo "#define CR_CFG_NO_BFCULL 1" >> $@ # temporary
 ifeq ($(NUM_SIZE),double)
 	echo "#define CR_CFG_NUM_DOUBLE 1" >> $@
 endif

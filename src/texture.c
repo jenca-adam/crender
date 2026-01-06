@@ -172,12 +172,11 @@ static inline cr_Vec3 _interp_correct(cr_Vec3 v0, cr_Vec3 v1, cr_Vec3 v2,
 }
 
 cr_num apow(cr_num x, uint8_t n) {
-  cr_num p[8];
-  p[0] = x;
+  cr_num p = x;
   cr_num r = 1.0;
   for (int i = 1; i < 8; i++) {
-    p[i] = p[i - 1] * p[i - 1];
-    r *= 1 + (!!((n >> i) & 1)) * (p[i] - 1);
+    p = p * p;
+    r *= 1 + (!!((n >> i) & 1)) * (p - 1);
   }
   return r;
 }
@@ -274,6 +273,7 @@ cr_Texture cr_Texture_bake_object_space_normal_map(cr_Texture *in,
 // I LOVE C
 
 #define _cr_Texture_shader_PHONG(SAMPLING_MODE, ...)                           \
+  cr_num spec, specpow;                                                        \
   specpow = cr_Texture_getuv_##SAMPLING_MODE(specular_map, uv).x;              \
   spec = apow(fmax(d, 0.0), specpow);                                          \
   cr_num intensity = d + spec * .6;                                            \
@@ -281,8 +281,6 @@ cr_Texture cr_Texture_bake_object_space_normal_map(cr_Texture *in,
       cr_Vec3_phong(color, intensity, 0, 255);
 
 #define _cr_Texture_shader_GOURAUD(...)                                        \
-  (void)spec;                                                                  \
-  (void)specpow;                                                               \
   (void)specular_map;                                                          \
   texture[(int)(tw * (th - y - 1) + x)] =                                      \
       cr_Vec3_pack_color(cr_Vec3_mul(color, fmax(d, 0.0)));
@@ -311,7 +309,7 @@ cr_Texture cr_Texture_bake_object_space_normal_map(cr_Texture *in,
           cr_Vec3_cross(cr_Vec3_sub(raw_tri.v2, raw_tri.v0),                   \
                         cr_Vec3_sub(raw_tri.v1, raw_tri.v0)));                 \
       cr_num intensity = cr_Vec3_dot(n, ldir);                                 \
-      if (intensity < -1 - cr_EPSILON) {                                       \
+      if (intensity <= 0) {                                                    \
         return false;                                                          \
       }                                                                        \
     }                                                                          \
@@ -362,15 +360,13 @@ cr_Texture cr_Texture_bake_object_space_normal_map(cr_Texture *in,
         if (inside < 0) {                                                      \
           break;                                                               \
         }                                                                      \
-        cr_num iz = iw0 * b.x + iw1 * b.y + iw2 * b.z;                         \
-        cr_num z = iz;                                                         \
+        cr_num z = iw0 * b.x + iw1 * b.y + iw2 * b.z;                          \
         int zbuffix = x + y * tw;                                              \
         CR_IFOMPLOCK(omp_lock_t * lock);                                       \
         CR_IFOMPLOCK(lock = &zbuffer_locks[zbuffix]);                          \
         CR_IFOMPLOCK(omp_set_lock(lock));                                      \
                                                                                \
         if (zbuffer[zbuffix] < z) {                                            \
-          cr_num spec, specpow;                                                \
           cr_Vec3 normal;                                                      \
           zbuffer[zbuffix] = z;                                                \
           cr_Vec3 uv =                                                         \
