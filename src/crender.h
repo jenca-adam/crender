@@ -667,8 +667,7 @@ _cr_Texture_draw_face_FORALL(_cr_Texture_draw_face_DECLH)
 #define Texture_writePPM cr_Texture_writePPM
 #define Texture_dealloc cr_Texture_dealloc
 #define Texture_to_linear cr_Texture_to_linear
-#define Texture_bake_object_space_normal_map                                   \
-  cr_Texture_bake_object_space_normal_map
+#define Texture_bake_object_space_normal_map cr_Texture_bake_object_space_normal_map
 #define Entity_create cr_Entity_create
 #define Entity_dealloc cr_Entity_dealloc
 #define Entity_detach_texture cr_Entity_detach_texture
