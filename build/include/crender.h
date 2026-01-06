@@ -328,7 +328,8 @@ cr_Matrix cr_Matrix_projection(cr_num camz, cr_num fov, cr_num aspect);
 cr_Matrix cr_Matrix_viewport(cr_num x, cr_num y, cr_num w, cr_num h, cr_num d);
 cr_Matrix cr_Matrix_from_vector(cr_Vec3 v);
 cr_Matrix cr_Matrix_from_vectors(cr_Vec3 v0, cr_Vec3 v1, cr_Vec3 v2);
-cr_Matrix cr_Matrix_from_vectors_transposed(cr_Vec3 v0, cr_Vec3 v1, cr_Vec3 v2);
+cr_Matrix cr_Matrix_from_vectors4(cr_Vec3 v0, cr_Vec3 v1, cr_Vec3 v2);
+cr_Matrix cr_Matrix_from_vectors_col(cr_Vec3 v0, cr_Vec3 v1, cr_Vec3 v2);
 cr_Matrix cr_Matrix_rotz(cr_num theta);
 cr_Matrix cr_Matrix_roty(cr_num theta);
 cr_Matrix cr_Matrix_rotx(cr_num theta);
@@ -336,6 +337,7 @@ cr_Matrix cr_Matrix_inverse(cr_Matrix matrix);
 cr_Matrix cr_Matrix_translation(cr_Vec3 v);
 cr_Matrix cr_Matrix_rotation(cr_Vec3 v);
 cr_Matrix cr_Matrix_inverse_clean(cr_Matrix matrix);
+cr_Matrix cr_Matrix_model_view(cr_Vec3 eye, cr_Vec3 center, cr_Vec3 up);
 cr_Matrix cr_Matrix_clone(cr_Matrix m);
 void cr_Matrix_dealloc(cr_Matrix *mat);
 cr_Vec3 cr_Vec3_copy(cr_Vec3 v);
@@ -484,17 +486,24 @@ typedef struct cr_Entity {
   bool valid;
 } cr_Entity;
 
+typedef struct cr_Camera {
+  cr_num fov;
+  cr_num near_plane;
+  cr_Vec3 eye;
+  cr_Vec3 center;
+  cr_Vec3 up;
+} cr_Camera;
+
 typedef struct cr_SceneSettings {
   cr_ShadingMode shading_mode;
   cr_SamplingMode sampling_mode;
   size_t render_width;
   size_t render_height;
   cr_num render_depth;
-  cr_num cam_z;
-  cr_num fov;
-  cr_num near_plane;
+  cr_Camera camera;
   cr_Vec3 light_dir;
   bool use_normal_map;
+
 } cr_SceneSettings;
 
 typedef struct cr_Entities {
@@ -513,6 +522,7 @@ typedef struct cr_Scene {
   omp_lock_t *zbuffer_locks;
   cr_Matrix projection;
   cr_Matrix viewport;
+  cr_Matrix model_view;
   cr_Matrix world_transform;
   cr_Matrix inverse_world_transform;
   cr_Texture default_texture;
@@ -625,12 +635,16 @@ _cr_Texture_draw_face_FORALL(_cr_Texture_draw_face_DECLH)
 #define Matrix_projection cr_Matrix_projection
 #define Matrix_viewport cr_Matrix_viewport
 #define Matrix_from_vector cr_Matrix_from_vector
+#define Matrix_from_vectors cr_Matrix_from_vectors
+#define Matrix_from_vectors4 cr_Matrix_from_vectors4
+#define Matrix_from_vectors_col cr_Matrix_from_vectors_col
 #define Matrix_rotz cr_Matrix_rotz
 #define Matrix_roty cr_Matrix_roty
 #define Matrix_rotx cr_Matrix_rotx
 #define Matrix_inverse cr_Matrix_inverse
 #define Matrix_translation cr_Matrix_translation
 #define Matrix_rotation cr_Matrix_rotation
+#define Matrix_model_view cr_Matrix_model_view
 #define Matrix_inverse_clean cr_Matrix_inverse_clean
 #define Matrix_dealloc cr_Matrix_dealloc
 #define Matric_clone cr_Matrix_clone

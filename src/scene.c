@@ -123,13 +123,21 @@ void cr_Scene_rebuild_transform(cr_Scene *s) {
   cr_SceneSettings settings = s->settings;
   cr_num aspect = (cr_num)settings.render_width / settings.render_height;
   cr_Matrix_dealloc(&s->projection);
-  s->projection = cr_Matrix_projection(settings.cam_z, settings.fov, aspect);
+  s->projection = cr_Matrix_projection(settings.camera.near_plane,
+                                       settings.camera.fov, aspect);
+
   cr_Matrix_dealloc(&s->viewport);
   s->viewport =
       cr_Matrix_viewport(0, 0, settings.render_width, settings.render_height,
                          settings.render_depth);
+  cr_Matrix_dealloc(&s->model_view);
+  s->model_view = cr_Matrix_model_view(
+      settings.camera.eye, settings.camera.center,
+      settings.camera.up); // s->model_view = cr_Matrix_identity(4);
+  cr_Matrix m = cr_Matrix_matmul(s->viewport, s->projection);
   cr_Matrix_dealloc(&s->world_transform);
-  s->world_transform = cr_Matrix_matmul(s->viewport, s->projection);
+  s->world_transform = cr_Matrix_matmul(m, s->model_view);
+  cr_Matrix_dealloc(&m);
 }
 
 int cr_Scene_init(cr_Scene *s) { return cr_Scene_update_settings(s); }
@@ -180,17 +188,23 @@ void cr_Scene_reset_buffers(cr_Scene *s) {
     s->framebuffer[i] = 0;
   }
 }
-static inline bool __cr_SceneSettings_eq(cr_SceneSettings a,
-                                         cr_SceneSettings b) {
+static inline bool __cr_Vec3_eq(cr_Vec3 a, cr_Vec3 b) {
+  return a.x == b.x && a.y == b.y && a.z == b.z;
+}
+static inline bool __cr_Camera_eq(cr_Camera a, cr_Camera b) {
+  return (a.fov == b.fov && a.near_plane == b.near_plane &&
+          __cr_Vec3_eq(a.center, b.center) && __cr_Vec3_eq(a.eye, b.eye) &&
+          __cr_Vec3_eq(a.up, b.up));
+}
+static inline bool
+__cr_SceneSettings_eq(cr_SceneSettings a,
+                      cr_SceneSettings b) { // this is insanely stupid
   return (
       a.shading_mode == b.shading_mode && a.sampling_mode == b.sampling_mode &&
       a.render_width == b.render_width && a.render_height == b.render_height &&
-      a.render_depth == b.render_depth && a.cam_z == b.cam_z &&
-      a.fov == b.fov && a.near_plane == b.near_plane &&
+      a.render_depth == b.render_depth && __cr_Camera_eq(a.camera, b.camera) &&
       a.light_dir.x == b.light_dir.x && a.light_dir.y == b.light_dir.y &&
       a.light_dir.z == b.light_dir.z && a.use_normal_map == b.use_normal_map);
-
-  ;
 }
 cr_Texture_draw_face_tp
 _select_draw_face_function(cr_ShadingMode shading_mode,
@@ -207,7 +221,7 @@ void cr_Scene_render(cr_Scene *s, int num_threads) {
   cr_Vec3 light_dir = s->settings.light_dir;
   cr_ShadingMode shading_mode = s->settings.shading_mode;
   cr_SamplingMode sampling_mode = s->settings.sampling_mode;
-  cr_num near_plane = s->settings.near_plane;
+  cr_num near_plane = s->settings.camera.near_plane;
   cr_num *zbuffer = s->zbuffer;
   omp_lock_t *zbuffer_locks = s->zbuffer_locks;
   cr_num rw = s->settings.render_width, rh = s->settings.render_height;

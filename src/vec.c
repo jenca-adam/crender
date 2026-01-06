@@ -59,12 +59,14 @@ cr_Matrix cr_Matrix_matmul(cr_Matrix m1, cr_Matrix m2) {
   return result;
 }
 
-cr_Matrix cr_Matrix_projection(cr_num camz, cr_num fov, cr_num aspect) {
-  cr_Matrix mat = cr_Matrix_identity(4);
-  mat.m[0][0] = fov / aspect;
-  mat.m[1][1] = fov;
-  mat.m[2][2] = camz;
-  mat.m[3][2] = -1.f / camz;
+cr_Matrix cr_Matrix_projection(cr_num near, cr_num fov, cr_num aspect) {
+  cr_Matrix mat = cr_Matrix_empty(4, 4);
+  cr_num f = 1.0f / tanf(fov * 0.5f);
+  mat.m[0][0] = f / aspect;
+  mat.m[1][1] = f;
+  mat.m[2][2] = -1.0f;
+  mat.m[2][3] = -2.0f * near;
+  mat.m[3][2] = -1.0f;
   return mat;
 }
 
@@ -118,8 +120,20 @@ cr_Matrix cr_Matrix_from_vectors(cr_Vec3 v0, cr_Vec3 v1, cr_Vec3 v2) {
   mat.m[2][2] = v2.z;
   return mat;
 }
-cr_Matrix cr_Matrix_from_vectors_transposed(cr_Vec3 v0, cr_Vec3 v1,
-                                            cr_Vec3 v2) {
+cr_Matrix cr_Matrix_from_vectors4(cr_Vec3 v0, cr_Vec3 v1, cr_Vec3 v2) {
+  cr_Matrix mat = cr_Matrix_identity(4);
+  mat.m[0][0] = v0.x;
+  mat.m[0][1] = v0.y;
+  mat.m[0][2] = v0.z;
+  mat.m[1][0] = v1.x;
+  mat.m[1][1] = v1.y;
+  mat.m[1][2] = v1.z;
+  mat.m[2][0] = v2.x;
+  mat.m[2][1] = v2.y;
+  mat.m[2][2] = v2.z;
+  return mat;
+}
+cr_Matrix cr_Matrix_from_vectors_col(cr_Vec3 v0, cr_Vec3 v1, cr_Vec3 v2) {
   cr_Matrix mat = cr_Matrix_empty(3, 3);
   mat.m[0][0] = v0.x;
   mat.m[1][0] = v0.y;
@@ -132,6 +146,20 @@ cr_Matrix cr_Matrix_from_vectors_transposed(cr_Vec3 v0, cr_Vec3 v1,
   mat.m[2][2] = v2.z;
   return mat;
 }
+cr_Matrix cr_Matrix_from_vectors_col4(cr_Vec3 v0, cr_Vec3 v1, cr_Vec3 v2) {
+  cr_Matrix mat = cr_Matrix_identity(4);
+  mat.m[0][0] = v0.x;
+  mat.m[1][0] = v0.y;
+  mat.m[2][0] = v0.z;
+  mat.m[0][1] = v1.x;
+  mat.m[1][1] = v1.y;
+  mat.m[2][1] = v1.z;
+  mat.m[0][2] = v2.x;
+  mat.m[1][2] = v2.y;
+  mat.m[2][2] = v2.z;
+  return mat;
+}
+
 cr_Matrix cr_Matrix_rotz(cr_num theta) {
   cr_Matrix mat = cr_Matrix_identity(4);
   mat.m[0][0] = cos(theta);
@@ -336,6 +364,15 @@ cr_Matrix cr_Matrix_inverse(cr_Matrix matrix) {
   return inverse;
 }
 
+cr_Matrix cr_Matrix_model_view(cr_Vec3 eye, cr_Vec3 center, cr_Vec3 up) {
+  cr_Vec3 a = cr_Vec3_normalized(cr_Vec3_sub(eye, center));
+  cr_Vec3 b = cr_Vec3_normalized(cr_Vec3_cross(up, a));
+  cr_Vec3 c = cr_Vec3_normalized(cr_Vec3_cross(a, b));
+  cr_Matrix m = cr_Matrix_from_vectors4(b, c, a);
+  cr_Matrix trans = cr_Matrix_translation(cr_Vec3_neg(eye));
+  cr_Matrix view = cr_Matrix_matmul(m, trans);
+  return view;
+}
 cr_Vec3 cr_Vec3_transform(cr_Vec3 v, cr_Matrix m) {
   cr_num x = v.x, y = v.y, z = v.z;
   cr_num w = 1.0;

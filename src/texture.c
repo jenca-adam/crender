@@ -255,7 +255,7 @@ cr_Texture cr_Texture_bake_object_space_normal_map(cr_Texture *in,
             tangent, cr_Vec3_mul(normal, cr_Vec3_dot(tangent, normal))));
         cr_Vec3 bitangent = cr_Vec3_normalized(cr_Vec3_cross(normal, tangent));
         cr_Matrix tbn_mat =
-            cr_Matrix_from_vectors_transposed(tangent, bitangent, normal);
+            cr_Matrix_from_vectors_col(tangent, bitangent, normal);
         cr_Vec3 tangent_space_normal =
             cr_Vec3_normal_from_color(cr_Texture_getuv_LINEAR(
                 in, (cr_Vec3){(cr_num)x / in->width, (cr_num)y / in->height,

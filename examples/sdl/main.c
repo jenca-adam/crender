@@ -89,9 +89,13 @@ int main(int argc, char *argv[]) {
       .render_width = width,
       .render_height = height,
       .render_depth = DEPTH,
-      .cam_z = cam_z,
-      .fov = 1,
-      .near_plane = NEAR_PLANE,
+      .camera = {
+        .fov = 1,
+        .near_plane = NEAR_PLANE,
+        .eye = {-1, 0, cam_z},
+        .center = {0,0,0},
+        .up = {0, 1, 0}
+       },
       .light_dir = light_dir,
       .use_normal_map = true,
   };
