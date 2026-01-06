@@ -371,6 +371,8 @@ cr_Matrix cr_Matrix_model_view(cr_Vec3 eye, cr_Vec3 center, cr_Vec3 up) {
   cr_Matrix m = cr_Matrix_from_vectors4(b, c, a);
   cr_Matrix trans = cr_Matrix_translation(cr_Vec3_neg(eye));
   cr_Matrix view = cr_Matrix_matmul(m, trans);
+  cr_Matrix_dealloc(&m);
+  cr_Matrix_dealloc(&trans);
   return view;
 }
 cr_Vec3 cr_Vec3_transform(cr_Vec3 v, cr_Matrix m) {

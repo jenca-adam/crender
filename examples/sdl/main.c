@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
       .camera = {
         .fov = 1,
         .near_plane = NEAR_PLANE,
-        .eye = {-1, 0, cam_z},
+        .eye = {0, 0, cam_z},
         .center = {0,0,0},
         .up = {0, 1, 0}
        },
