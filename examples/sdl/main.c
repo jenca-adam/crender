@@ -266,3 +266,10 @@ int main(int argc, char *argv[]) {
   cleanupDisplay();
   return 0;
 }
+
+#ifdef __WIN32__
+#include <windows.h>
+int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow) {
+    return main(__argc, __argv);
+}
+#endif

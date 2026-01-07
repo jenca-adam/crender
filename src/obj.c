@@ -38,7 +38,7 @@ void cr_Object_compute_vertex_tangents(cr_Object *object,
       continue;
     if (!cr_Face_gettri(&face, object, UV, &uvs))
       continue;
-    cr_Vec3 tri_tangent = cr_Triangle_get_tangent(vs, uvs);
+    cr_Vec3 tri_tangent = cr_Triangle_get_tangent(&vs, &uvs);
     for (int j = 0; j < 3; j++) {
       size_t vi = face.vs[j] - 1;
       cr_Vec3_ADD_INPLACE(out_tangents[vi], tri_tangent);

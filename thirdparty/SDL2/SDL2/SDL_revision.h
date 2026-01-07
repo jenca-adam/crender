@@ -1,0 +1,8 @@
+/* #undef SDL2COMPAT_VENDOR_INFO */
+#define SDL_REVISION_NUMBER 0
+
+#ifdef SDL2COMPAT_VENDOR_INFO
+#define SDL_REVISION "SDL-release-2.32.60-0-g9831c2e (" SDL2COMPAT_VENDOR_INFO ")"
+#else
+#define SDL_REVISION "SDL-release-2.32.60-0-g9831c2e"
+#endif

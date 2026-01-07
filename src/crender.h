@@ -33,11 +33,11 @@ typedef void omp_lock_t;
 #endif
 #endif
 #if CR_CFG_NUM_DOUBLE
-#define cr_num double
+typedef  double cr_num;
 #define cr_NUM_FMT "%lf"
 #define cr_NUM_INT_TYPE int64_t
 #else
-#define cr_num float
+typedef float cr_num;
 #define cr_NUM_FMT "%f"
 #define cr_NUM_INT_TYPE int32_t
 #endif
@@ -405,7 +405,7 @@ cr_Triangle cr_Triangle_transform(cr_Triangle tri, cr_Matrix transform);
 cr_Triangle cr_Triangle_transform3(cr_Triangle tri, cr_Matrix transform);
 cr_Triangle cr_Triangle_transform4(cr_Triangle tri, cr_Matrix transform,
                                    cr_Vec3 *ws);
-cr_Vec3 cr_Triangle_get_tangent(cr_Triangle vs, cr_Triangle uvs);
+cr_Vec3 cr_Triangle_get_tangent(cr_Triangle *vs, cr_Triangle *uvs);
 static inline cr_Vec3 cr_Triangle_get_normal(cr_Triangle vs) {
   cr_Vec3 e1 = cr_Vec3_sub(vs.v1, vs.v0), e2 = cr_Vec3_sub(vs.v2, vs.v0);
   return cr_Vec3_normalized(cr_Vec3_cross(e1, e2));

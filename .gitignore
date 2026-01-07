@@ -11,3 +11,4 @@ obj/violin
 obj/bust
 src/texture_expanded.c
 *.swp
+*.exe

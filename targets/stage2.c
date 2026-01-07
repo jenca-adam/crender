@@ -34,8 +34,15 @@
 #endif
 #ifdef TARGET_WIN_MINGW32
 #define GETOPT (THIRDPARTY"/wingetopt/getopt.c")
+#endif
+#ifdef PARAM_ASAN
+#define ASAN "-fsanitize=address"
+#endif
+#define SDL THIRDPARTY"/SDL2"
+#ifdef TARGET_LINUX
+#define SDL_LIB SDL "/linux"
 #else
-#define GETOPT
+#define SDL_LIB SDL "/win"
 #endif
 struct util {
     const char *source;
@@ -86,8 +93,11 @@ int main(void){
 #endif
     const char *sources[] = {"abi_tag", "obj", "scene", ("texture"EXPANDED), "tri", "vec"};
     const struct util utils[] = { {.source = "crbake.c", .name="crbake"} };
-    cmd_append(&dynlib_cmd, CC, "-shared", "-fPIC", "-o", (BUILD_DIR_LIB"/libcrender"DYNLIB_SUFFIX), );
+    cmd_append(&dynlib_cmd, CC, "-shared", "-fPIC", "-o", (BUILD_DIR_LIB"/libcrender"DYNLIB_SUFFIX), LDLIBS, );
     cmd_append(&statlib_cmd, AR, "-rv", (BUILD_DIR_LIB"/libcrender"STATLIB_SUFFIX));
+#ifdef PARAM_DEBUG
+    cmd_append(&dynlib_cmd, DEBUG_FLAG);
+#endif
     for (size_t i=0; i<ARRAY_LEN(sources); i++){
         const char *source = sources[i];
         char *src_file = malloc(sizeof(SRC_DIR)+strlen(source)+4);
@@ -105,10 +115,13 @@ int main(void){
         cmd_run(&cmd);
 #endif
         cmd_append(&cmd, 
-                CC, "-Wall", "-Wextra", "-pedantic", "-march=native", "-ffast-math", "-funroll-loops", 
+                CC, "-Wall", "-Wextra", "-Wpedantic", "-Wshadow", "-Wstrict-aliasing", "-march=native", "-ffast-math", "-funroll-loops", 
                 "-I",INCLUDES, "-I",THIRDPARTY, "-fPIC", "-c", src_file, "-o", obj_file, LDLIBS);
+#ifdef ASAN
+        cmd_append(&cmd, ASAN);
+#endif
 #ifdef PARAM_DEBUG
-        cmd_append(&cmd, "-g3");
+        cmd_append(&cmd, DEBUG_FLAG);
 #endif
 #ifdef PARAM_O0
         cmd_append(&cmd, "-O0");
@@ -152,9 +165,18 @@ int main(void){
         cmd_append(&cmd, CLANG_FORMAT, "-i", src_file);
         cmd_run(&cmd);
 #endif
-        cmd_append(&cmd, CC, src_file, "-o", out_file, "-Wall", "-Wextra", "-pedantic", LDLIBS, (PREFERRED_CRENDER), "-I", (BUILD_DIR_INCLUDE), "-I", INCLUDES, "-I",THIRDPARTY,"-L", (BUILD_DIR_LIB), GETOPT);
+        cmd_append(&cmd, CC, src_file, "-o", out_file, "-Wall", "-Wextra", "-Wpedantic", LDLIBS, (PREFERRED_CRENDER), "-I", (BUILD_DIR_INCLUDE), "-I", INCLUDES, "-I",THIRDPARTY,"-L", (BUILD_DIR_LIB));
+#ifdef GETOPT
+        cmd_append(&cmd, GETOPT);
+#endif
+#ifdef PARAM_DEBUG
+        cmd_append(&cmd, DEBUG_FLAG);
+#endif
         cmd_run(&cmd, .async=&procs);
     }
+    cmd_append(&cmd, CC, "examples/sdl/main.c", "examples/sdl/display.c", "-o", "examples/sdl/renderer", "-Wall", "-Wextra", "-Wpedantic", LDLIBS, (PREFERRED_CRENDER) ,"-I", (BUILD_DIR_INCLUDE), "-I", INCLUDES, "-I",THIRDPARTY, ("-L"BUILD_DIR_LIB), ("-L"SDL_LIB),("-I"SDL));
+    cmd_append(&cmd,"-lSDL2");
+    cmd_run(&cmd);
     if(!procs_flush(&procs)){
         return 1;
     }

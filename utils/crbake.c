@@ -18,7 +18,7 @@ void print_usage(const char *prog) {
           "Usage: %s [options] [FILE]\n"
           "A combined baking utility for crender\n\n"
           "Options:\n"
-          "  -o FILE          Write output to FILE instead of stdout\n"
+          "  -o FILE          Write output to FILE instead of out\n"
           "Modes (exactly one required):\n"
           "  -n OBJECT        Bake object space normal map for OBJECT from a "
           "tangent space normal map\n"
@@ -58,7 +58,7 @@ int main(int argc, char *argv[]) {
   cr_INIT_CRENDER();
 
   struct args args = {UNSPECIFIED, NULL, NULL,
-                      "/dev/stdout"}; // cross-platform issue noted
+                      "out"}; // cross-platform issue noted
   int opt;
 
   while ((opt = getopt(argc, argv, "o:n:Osf")) != -1) {

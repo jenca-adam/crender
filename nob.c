@@ -10,14 +10,16 @@
     "build without multithreading. removes dependency on OpenMP")              \
   X(UNSAFE, "don't use mutex locks. will result in a performance boost, but "     \
             "will cause artifacts")\
-  X(STATIC, "also link statically.")
+  X(STATIC, "also link statically.")\
+  X(ASAN, "build with -fsanitize=address")
 #define X_BOOL_PARAMS(X)                                                       \
   X(DEBUG)                                                                     \
   X(EXPAND_MACRO)                                                              \
   X(O0)                                                                        \
   X(SINGLETHREAD)                                                              \
   X(UNSAFE)\
-  X(STATIC)
+  X(STATIC)\
+  X(ASAN)
 #define TARGET_VALUES_VA(X, ...)                                               \
   X(LINUX, __VA_ARGS__)                                                        \
   X(WIN_MINGW32, __VA_ARGS__)                                                  \
@@ -109,7 +111,9 @@ typedef struct {
 } config;
 bool load_config(const char *fn, config *cnf) {
   FILE *fp = fopen(fn, "rb");
-  *cnf = (config){CURRENT_PLATFORM, F32, 0, 0, 0, 0, 0};
+  *cnf = (config){0};
+  cnf->PTARGET = CURRENT_PLATFORM;
+  cnf->PFLOAT = F32;
   if (!fp) {
     nob_log(NOB_INFO, "couldn't load config, creating a default one: %s",
             strerror(errno));
