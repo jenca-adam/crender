@@ -91,42 +91,35 @@ bool read_vec3(FILE *fp, cr_Vec3 *v) {
   }
   return false;
 }
-void read_face_vinfo(char *vinfo, size_t *vindex, size_t *uvindex,
+
+void read_face_vinfo(const char *vinfo, size_t *vindex, size_t *uvindex,
                      size_t *nindex) {
-  size_t size = strlen(vinfo);
-  FILE *stream = fmemopen(vinfo, size, "rb");
-  for (int i = 0; i < 3;) {
-    size_t q;
-    if (fscanf(stream, "%zu", &q) == 1) {
-      switch (i) {
-      case 0:
-        *vindex = q;
-        break;
-      case 1:
-        *uvindex = q;
-        break;
-      case 2:
-        *nindex = q;
-        break;
-      }
-      // ignore slashes
-      int c;
-      c = fgetc(stream);
-      while (c == '/') {
-        c = fgetc(stream);
-        i++;
-      }
-      if (c == EOF) {
-        break;
-      }
+  const char *p = vinfo;
+  char *end;
 
-      fseek(stream, -1, SEEK_CUR); // go back (maybe ungetc  would be better?)
+  *vindex = strtoul(p, &end, 10);
+  if (end == p)
+    return;
+  p = end;
 
-    } else {
-      break;
+  if (*p == '/') {
+    p++;
+
+    if (*p != '/') {
+      *uvindex = strtoul(p, &end, 10);
+      if (end == p)
+        return;
+      p = end;
+    }
+
+    if (*p == '/') {
+      p++;
+
+      *nindex = strtoul(p, &end, 10);
+      if (end == p)
+        return;
     }
   }
-  fclose(stream);
 }
 
 bool read_face(FILE *fp, cr_Object *obj, cr_Face *face) {

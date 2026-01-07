@@ -4,6 +4,9 @@ vgcore*
 *gmon.out*
 *.o
 *renderer
+nob
+nob.old
+*stage2
 obj/violin
 obj/bust
 src/texture_expanded.c

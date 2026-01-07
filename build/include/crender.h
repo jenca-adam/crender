@@ -526,7 +526,6 @@ typedef struct cr_Scene {
   cr_Matrix model_view;
   cr_Matrix inverse_model_view;
   cr_Matrix world_transform;
-  cr_Matrix inverse_world_transform;
   cr_Texture default_texture;
   bool valid;
 } cr_Scene;
