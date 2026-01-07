@@ -80,12 +80,25 @@ static char *strstr_no_case(const char *h, const char *n) {
 #define strcmp_no_case strcasecmp
 #endif
 enum bool_param { KEEP = -1, UNSET = 0, SET = 1 };
-bool delete_file(Walk_Func_Entry entry){
-    delete_file(entry.path);
+void delete_entire_dir(const char *dirname);
+bool delete_one_file(Nob_Walk_Entry entry){
+    char *start = entry.data;
+    switch(entry.type){
+        case FILE_DIRECTORY:
+            if(strcmp(start, entry.path)!=0){
+                delete_entire_dir(entry.path);
+                *entry.action = WALK_SKIP; 
+            }
+            break;
+        default:
+            delete_file(entry.path);
+            break;
+    }
     return true;
 }
-void delete_entire_dir(dirname){
-    walk_dir(dirname, delete_file);
+void delete_entire_dir(const char *dirname){
+    walk_dir(dirname, delete_one_file, (void*)dirname);
+    delete_file(dirname);
 }
 typedef struct {
 #define COMMA(x) x,
@@ -164,6 +177,9 @@ int clean(void){
    delete_entire_dir("build");
    delete_entire_dir("config");
    delete_file("src/crender_cfg.h");
+   delete_file("nob");
+   delete_file("nob.old");
+   return 0;
 }
 bool dump_config(char *fn, config *cnf) {
   FILE *fp = fopen(fn, "wb");
