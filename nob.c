@@ -10,9 +10,9 @@
     "build without multithreading. removes dependency on OpenMP")              \
   X(UNSAFE, "don't use mutex locks. will result in a performance boost, but "  \
             "will cause artifacts")                                            \
-  X(STATIC_LIB, "also produce a library to link statically against")            \
-  X(STATIC_EXAMPLE, "link the example statically")                                  \
-  X(ASAN, "build with -fsanitize=address")      \
+  X(STATIC_LIB, "also produce a library to link statically against")           \
+  X(STATIC_EXAMPLE, "link the example statically")                             \
+  X(ASAN, "build with -fsanitize=address")                                     \
   X(EXAMPLE_SDL_NO_VSYNC, "don't use vsync for the sdl example")
 #define X_BOOL_PARAMS(X)                                                       \
   X(DEBUG)                                                                     \
@@ -20,9 +20,9 @@
   X(O0)                                                                        \
   X(SINGLETHREAD)                                                              \
   X(UNSAFE)                                                                    \
-  X(STATIC_EXAMPLE) \
-  X(STATIC_LIB)\
-  X(ASAN)\
+  X(STATIC_EXAMPLE)                                                            \
+  X(STATIC_LIB)                                                                \
+  X(ASAN)                                                                      \
   X(EXAMPLE_SDL_NO_VSYNC)
 #define TARGET_VALUES_VA(X, ...)                                               \
   X(LINUX, __VA_ARGS__)                                                        \
@@ -48,10 +48,10 @@
   X(F32)                                                                       \
   X(F64)
 #define BOOL_VALUES_VA(X, ...)                                                 \
-  X(NO, __VA_ARGS__)                                                        \
+  X(NO, __VA_ARGS__)                                                           \
   X(YES, __VA_ARGS__)
 #define BOOL_VALUES(X)                                                         \
-  X(NO)                                                                     \
+  X(NO)                                                                        \
   X(YES)
 
 #define CURRENT_PLATFORM LINUX
@@ -160,43 +160,42 @@ void merge_configs(config *c1, config *c2) {
   X_BOOL_PARAMS(BOOL_PARAM_MERGE_CONFIG);
 }
 void print_config(config cnf) {
-#define GET_DOC_SINGLE(val, doc, param, into) \
-    if (cnf.P##param==val) {\
-        into=doc;\
-    }
-#define GET_DOC(param, into,  VALUES_DOC_VA)\
-    VALUES_DOC_VA(GET_DOC_SINGLE, param,  into) 
-#define PRINT_CASE(val, doc, ...)                                                        \
+#define GET_DOC_SINGLE(val, doc, param, into)                                  \
+  if (cnf.P##param == val) {                                                   \
+    into = doc;                                                                \
+  }
+#define GET_DOC(param, into, VALUES_DOC_VA)                                    \
+  VALUES_DOC_VA(GET_DOC_SINGLE, param, into)
+#define PRINT_CASE(val, doc, ...)                                              \
   case val:                                                                    \
     s = #val;                                                                  \
     break;
-#define NONBOOL_PARAM_PRINT(param, VALUES_DOC_VA)                                     \
+#define NONBOOL_PARAM_PRINT(param, VALUES_DOC_VA)                              \
   do {                                                                         \
-    char *s, *doc;                                                                   \
+    char *s, *doc;                                                             \
     switch (cnf.P##param) {                                                    \
-      VALUES_DOC_VA(PRINT_CASE,0);                                                      \
+      VALUES_DOC_VA(PRINT_CASE, 0);                                            \
     default:                                                                   \
       s = "KEEP";                                                              \
       break;                                                                   \
     }                                                                          \
-    GET_DOC(param, doc, VALUES_DOC_VA)\
-    nob_log(NOB_INFO, #param "=%s (%s)", s, doc);                                        \
+    GET_DOC(param, doc, VALUES_DOC_VA)                                         \
+    nob_log(NOB_INFO, #param "=%s (%s)", s, doc);                              \
   } while (0);
-#define BOOL_PARAM_PRINT(param, doc)\
+#define BOOL_PARAM_PRINT(param, doc)                                           \
   do {                                                                         \
     char *s;                                                                   \
-    switch (cnf.PPARAM_##param) {                                                    \
-        BOOL_VALUES_VA(PRINT_CASE,0,0);                                                      \
+    switch (cnf.PPARAM_##param) {                                              \
+      BOOL_VALUES_VA(PRINT_CASE, 0, 0);                                        \
     default:                                                                   \
       s = "KEEP";                                                              \
       break;                                                                   \
     }                                                                          \
-    if(cnf.PPARAM_##param==YES){\
-        nob_log(NOB_INFO, #param "=%s (%s)", s, doc);                                        \
-    }\
-    else{\
-        nob_log(NOB_INFO, #param "=%s", s);\
-        }\
+    if (cnf.PPARAM_##param == YES) {                                           \
+      nob_log(NOB_INFO, #param "=%s (%s)", s, doc);                            \
+    } else {                                                                   \
+      nob_log(NOB_INFO, #param "=%s", s);                                      \
+    }                                                                          \
   } while (0);
 
   nob_log(NOB_INFO, "======= Config =======");
@@ -255,7 +254,7 @@ int main(int argc, char **argv) {
     return 1;
   }
   shift(argv, argc);
-  bool config_only=false;
+  bool config_only = false;
   while (argc > 0) {
     char *arg = shift(argv, argc);
     if (0) {
@@ -263,15 +262,13 @@ int main(int argc, char **argv) {
 #define BOOL_PARAM_PARSE(b)                                                    \
   else if (strstr_no_case((arg), #b "=") == arg) {                             \
     char *v = (arg) + sizeof(#b);                                              \
-    if (strstr_no_case(v, "yes") == v){\
-        (cnf).PPARAM_##b = YES;\
-    }\
-    else if (strstr_no_case(v, "no") == v){\
-        (cnf).PPARAM_##b = NO;  \
-    }\
-    else{\
-    (cnf).PPARAM_##b = (bool)atoi(v); /*make it either NO or YES*/          \
-    }\
+    if (strstr_no_case(v, "yes") == v) {                                       \
+      (cnf).PPARAM_##b = YES;                                                  \
+    } else if (strstr_no_case(v, "no") == v) {                                 \
+      (cnf).PPARAM_##b = NO;                                                   \
+    } else {                                                                   \
+      (cnf).PPARAM_##b = (bool)atoi(v); /*make it either NO or YES*/           \
+    }                                                                          \
   }
 #define PARSE_CASE(val, param)                                                 \
   else if (strcmp_no_case(v, #val) == 0) {                                     \
@@ -290,8 +287,8 @@ int main(int argc, char **argv) {
     if (strcmp_no_case(arg, "clean") == 0) {
       return clean();
     }
-    if (strcmp_no_case(arg, "config") == 0){
-        config_only=true;
+    if (strcmp_no_case(arg, "config") == 0) {
+      config_only = true;
     }
     X_BOOL_PARAMS(BOOL_PARAM_PARSE)
     NONBOOL_PARAM_PARSE(TARGET, TARGET_VALUES_VA)
@@ -300,10 +297,10 @@ int main(int argc, char **argv) {
   load_config("./config/build_config.h", &loaded_cnf);
   merge_configs(&loaded_cnf, &cnf);
   print_config(loaded_cnf);
-   if (!dump_config("./config/build_config.h", &loaded_cnf)) {
+  if (!dump_config("./config/build_config.h", &loaded_cnf)) {
     return 1;
   }
- if (config_only){
+  if (config_only) {
     return 0;
   }
 

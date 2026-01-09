@@ -114,8 +114,8 @@ int main(void) {
 #endif
   for (size_t i = 0; i < ARRAY_LEN(sources); i++) {
     const char *source = sources[i];
-    char *src_file = temp_sprintf(SRC_DIR"/%s.c", source);
-    char *obj_file = temp_sprintf(SRC_DIR"/%s.o", source);
+    char *src_file = temp_sprintf(SRC_DIR "/%s.c", source);
+    char *obj_file = temp_sprintf(SRC_DIR "/%s.o", source);
     cmd_append(&dynlib_cmd, obj_file);
     cmd_append(&statlib_cmd, obj_file);
 #ifdef CLANG_FORMAT
@@ -123,7 +123,7 @@ int main(void) {
     cmd_run(&cmd);
 #endif
     cmd_append(&cmd, CC, "-Wall", "-Wextra", "-Wpedantic", "-Wshadow",
-               "-Wstrict-aliasing", "-march=native", "-ffast-math",
+               "-Wstrict-aliasing", /*"-march=native",*/ "-ffast-math",
                "-funroll-loops", "-I", INCLUDES, "-I", THIRDPARTY, "-fPIC",
                "-c", src_file, "-o", obj_file, LDLIBS);
 #ifdef ASAN
@@ -188,12 +188,11 @@ int main(void) {
     cmd_run(&cmd, .async = &procs);
   }
   cmd_append(&cmd, CC, "examples/sdl/main.c", "examples/sdl/display.c", "-o",
-             "examples/sdl/renderer", "-Wall", "-Wextra", "-Wpedantic",
-             "-I", (BUILD_DIR_INCLUDE), "-I", INCLUDES,
-             "-I", THIRDPARTY, ("-L" BUILD_DIR_LIB), ("-L" SDL_LIB),
-             ("-I" SDL));
+             "examples/sdl/renderer", "-Wall", "-Wextra", "-Wpedantic", "-I",
+             (BUILD_DIR_INCLUDE), "-I", INCLUDES, "-I", THIRDPARTY,
+             ("-L" BUILD_DIR_LIB), ("-L" SDL_LIB), ("-I" SDL));
   cmd_append(&cmd, (PREFERRED_CRENDER), "-lSDL2", LDLIBS EXAMPLE_EXTRA_FLAGS);
-#ifdef PARAM_SDL_EXAMPLE_NO_VSYNC
+#ifdef PARAM_EXAMPLE_SDL_NO_VSYNC
   cmd_append(&cmd, "-DNO_VSYNC");
 #endif
 #ifdef PARAM_STATIC_EXAMPLE
