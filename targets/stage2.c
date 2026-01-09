@@ -23,6 +23,9 @@
 #elif defined(TARGET_WIN_MSVC)
 #error "MSVC target not yet supported"
 #define QUIT
+#else
+#error "Invalid target."
+#define QUIT
 #endif
 #ifndef PARAM_SINGLETHREAD
 #define LDLIBS "-lm", "-fopenmp"
@@ -111,14 +114,8 @@ int main(void) {
 #endif
   for (size_t i = 0; i < ARRAY_LEN(sources); i++) {
     const char *source = sources[i];
-    char *src_file = malloc(sizeof(SRC_DIR) + strlen(source) + 4);
-    strcat(src_file, SRC_DIR "/");
-    strcat(src_file, source);
-    strcat(src_file, ".c");
-    char *obj_file = malloc(sizeof(SRC_DIR) + strlen(source) + 4);
-    strcat(obj_file, SRC_DIR "/");
-    strcat(obj_file, source);
-    strcat(obj_file, ".o");
+    char *src_file = temp_sprintf(SRC_DIR"/%s.c", source);
+    char *obj_file = temp_sprintf(SRC_DIR"/%s.o", source);
     cmd_append(&dynlib_cmd, obj_file);
     cmd_append(&statlib_cmd, obj_file);
 #ifdef CLANG_FORMAT
