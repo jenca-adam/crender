@@ -18,7 +18,7 @@ int initDisplay(int width, int height, int render_width, int render_height,
     SDL_Quit();
     return 0;
   }
-#ifdef VSYNC
+#ifndef NO_VSYNC
   SDL_Renderer *renderer = SDL_CreateRenderer(
       window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 #else

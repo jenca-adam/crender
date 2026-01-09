@@ -6,3 +6,4 @@
 #define DYNLIB_SUFFIX ".dll"
 #define STATLIB_SUFFIX ".lib"
 #define DEBUG_FLAG "-g3"
+#define EXAMPLE_EXTRA_FLAGS ,"-lsetupapi", "-lole32", "-lgdi32", "-limm32", "-lversion", "-loleaut32", "-lwinmm"

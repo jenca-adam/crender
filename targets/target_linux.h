@@ -3,3 +3,4 @@
 #define DYNLIB_SUFFIX ".so"
 #define STATLIB_SUFFIX ".a"
 #define DEBUG_FLAG "-g3"
+#define EXAMPLE_EXTRA_FLAGS

@@ -33,7 +33,7 @@ typedef void omp_lock_t;
 #endif
 #endif
 #if CR_CFG_NUM_DOUBLE
-typedef  double cr_num;
+typedef double cr_num;
 #define cr_NUM_FMT "%lf"
 #define cr_NUM_INT_TYPE int64_t
 #else
