@@ -104,7 +104,7 @@ int main(void) {
   const char *sources[] = {"abi_tag", "obj", "scene", ("texture" EXPANDED),
                            "tri",     "vec"};
   const struct util utils[] = {{.source = "crbake.c", .name = "crbake"}};
-  cmd_append(&dynlib_cmd, CC, "-shared", "-fPIC", "-o",
+  cmd_append(&dynlib_cmd, CC, "-shared", "-fPIC", /*"-flto",*/ "-o",
              (BUILD_DIR_LIB "/libcrender" DYNLIB_SUFFIX), LDLIBS, );
 
   cmd_append(&statlib_cmd, AR, "-rv",
@@ -124,7 +124,7 @@ int main(void) {
 #endif
     cmd_append(&cmd, CC, "-Wall", "-Wextra", "-Wpedantic", "-Wshadow",
                "-Wstrict-aliasing", /*"-march=native",*/ "-ffast-math",
-               "-funroll-loops", "-I", INCLUDES, "-I", THIRDPARTY, "-fPIC",
+               "-funroll-loops", /*"-flto",*/ "-I", INCLUDES, "-I", THIRDPARTY, "-fPIC",
                "-c", src_file, "-o", obj_file, LDLIBS);
 #ifdef ASAN
     cmd_append(&cmd, ASAN);

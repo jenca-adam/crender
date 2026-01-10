@@ -252,7 +252,7 @@ void cr_Scene_render(cr_Scene *s, int num_threads) {
             ? entity.ts.specular_map
             : &s->default_texture;
     cr_Matrix t = cr_Matrix_matmul(s->world_transform, entity.transform);
-    cr_Matrix i =
+    cr_Matrix inv =
         cr_Matrix_matmul(entity.inverse_transform, s->inverse_model_view);
 #if !CR_CFG_NO_MULTITHREAD
 #pragma omp parallel for schedule(cr_SCHEDULE)
@@ -261,10 +261,10 @@ void cr_Scene_render(cr_Scene *s, int num_threads) {
       cr_Face *face = &ob->faces.items[fi];
       cr_Texture_draw_face(framebuffer, rw, rh, face, entity.ob, diffuse,
                            normal_map, specular_map, zbuffer, zbuffer_locks,
-                           light_dir, t, entity.transform, i, near_plane);
+                           light_dir, t, entity.transform, inv, near_plane);
     }
     cr_Matrix_dealloc(&t);
-    cr_Matrix_dealloc(&i);
+    cr_Matrix_dealloc(&inv);
   }
 }
 

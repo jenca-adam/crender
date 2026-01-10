@@ -288,6 +288,7 @@ bool cr_Face_gettri(cr_Face *face, cr_Object *obj, cr_FaceTriType tt,
   switch (tt) {
   case VERTEX:
     if (!obj->vertices.count) {
+      *tri = (cr_Triangle){0};
       return false;
     }
     *tri = cr_Triangle_create(obj->vertices.items[face->vs[0] - 1],
@@ -297,6 +298,8 @@ bool cr_Face_gettri(cr_Face *face, cr_Object *obj, cr_FaceTriType tt,
 
   case UV:
     if (!obj->uvs.count) {
+
+      *tri = (cr_Triangle){0};
       return false;
     }
 
@@ -306,6 +309,8 @@ bool cr_Face_gettri(cr_Face *face, cr_Object *obj, cr_FaceTriType tt,
     break;
   case NORMAL:
     if (!obj->normals.count) {
+
+      *tri = (cr_Triangle){0};
       return false;
     }
     *tri = cr_Triangle_create(obj->normals.items[face->vns[0] - 1],
