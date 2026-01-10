@@ -288,7 +288,7 @@ static inline cr_Vec3 cr_Vec3_from_matrix3(cr_Matrix mat) {
   return cr_Vec3_create(mat.m[0][0], mat.m[1][0], mat.m[2][0]);
 }
 static inline uint32_t cr__pack(int r, int g, int b) {
-  return 0xff | b << 8 | g << 16 | r << 24;
+  return 0xff << 24 | b << 16 | g << 8 | r;
 }
 static inline uint32_t cr_Vec3_phong(cr_Vec3 v1, cr_num a, cr_num lo,
                                      cr_num hi) {

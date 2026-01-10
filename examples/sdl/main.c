@@ -16,7 +16,7 @@
 #define TX 2
 #define TY 2
 #define TZ 2
-#define NEAR_PLANE (CAM_Z)
+#define NEAR_PLANE (-0.1)
 void usage(void) {
   printf("-----------------------\n\
 Commands: \n\
@@ -93,7 +93,7 @@ int main(int argc, char *argv[]) {
         .fov = 1,
         .near_plane = NEAR_PLANE,
         .eye = {0, 0, cam_z},
-        .center = {0,0,0},
+        .center = {0,0,-9999},
         .up = {0, 1, 0}
        },
       .light_dir = light_dir,

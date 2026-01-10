@@ -41,7 +41,7 @@ int initDisplay(int width, int height, int render_width, int render_height,
   display->window = window;
   display->renderer = renderer;
   display->fbuf = SDL_CreateTexture(
-      renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING,
+      renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING,
       display->render_width, display->render_height);
   return 1;
 }
