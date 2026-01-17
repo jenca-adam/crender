@@ -46,7 +46,7 @@ int initDisplay(int width, int height, int render_width, int render_height,
   return 1;
 }
 
-void cleanupDisplay() {
+void cleanupDisplay(void) {
   if (!display) {
     return;
   }
@@ -77,7 +77,7 @@ void updateDisplay(Linear_Texture pixels) {
       fbuf_size.y != display->render_height) {
     SDL_DestroyTexture(display->fbuf);
     display->fbuf =
-        SDL_CreateTexture(display->renderer, SDL_PIXELFORMAT_RGBA8888,
+        SDL_CreateTexture(display->renderer, SDL_PIXELFORMAT_ABGR8888,
                           SDL_TEXTUREACCESS_STREAMING, display->render_width,
                           display->render_height);
   }

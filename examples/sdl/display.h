@@ -17,7 +17,7 @@ typedef struct Display {
 } Display;
 int initDisplay(int width, int height, int render_width, int render_height,
                 const char *title);
-void cleanupDisplay();
+void cleanupDisplay(void);
 void setScreenPixel(int i, int j, Vec3 color);
 void updateDisplay(Linear_Texture pixels);
 void clearDisplay(Vec3 color);
