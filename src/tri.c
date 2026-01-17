@@ -43,4 +43,3 @@ cr_Vec3 cr_Triangle_get_tangent(cr_Triangle *vs, cr_Triangle *uvs) {
       cr_Vec3_sub(cr_Vec3_mul(e1, uve2.y), cr_Vec3_mul(e2, uve1.y)), r));
   return tangent;
 }
-#undef cr_TRIANGLE_MAP // not needed anywhere else

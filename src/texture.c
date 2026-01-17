@@ -343,8 +343,9 @@ cr_Texture cr_Texture_bake_object_space_normal_map(cr_Texture *in,
     cr_num rayy = deltax.y != 0 ? (cr_num)1.0 / deltax.y : 0;                  \
     cr_num rayz = deltax.z != 0 ? (cr_num)1.0 / deltax.z : 0;                  \
     for (int y = miny; y <= maxy; y++) {                                       \
-      cr_Vec3 b = bbase;                                                       \
+      /*cr_Vec3 b = bbase; \*/                                                 \
       /* compute the bounds from barycentric coordinates*/                     \
+      cr_Vec3 b = cr_barycentric(tri.v0, tri.v1, tri.v2, minx, y, bary_denom); \
       cr_num tx = (-b.x * rayx), ty = (-b.y * rayy), tz = (-b.z * rayz);       \
       cr_num tinx = cr_clamplo(copysign(tx, -b.x), 0);                         \
       cr_num tiny = cr_clamplo(copysign(ty, -b.y), 0);                         \
@@ -353,9 +354,12 @@ cr_Texture cr_Texture_bake_object_space_normal_map(cr_Texture *in,
       cr_Vec3_ADD_INPLACE3(b, deltax.x * tin, deltax.y * tin, deltax.z * tin); \
       for (int x = minx + tin; x <= maxx; x++) {                               \
         cr_NUM_INT_TYPE ibx, iby, ibz;                                         \
-        cr_NUM_INT_CAST(b.x, ibx);                                             \
-        cr_NUM_INT_CAST(b.y, iby);                                             \
-        cr_NUM_INT_CAST(b.z, ibz);                                             \
+        cr_num bx_eb = b.x + cr_EPSILON;                                       \
+        cr_num by_eb = b.y + cr_EPSILON;                                       \
+        cr_num bz_eb = b.z + cr_EPSILON;                                       \
+        cr_NUM_INT_CAST(bx_eb, ibx);                                           \
+        cr_NUM_INT_CAST(by_eb, iby);                                           \
+        cr_NUM_INT_CAST(bz_eb, ibz);                                           \
         cr_NUM_INT_TYPE inside = ibx | iby | ibz;                              \
         if (inside < 0) {                                                      \
           break;                                                               \
