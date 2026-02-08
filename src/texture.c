@@ -305,9 +305,8 @@ cr_Texture cr_Texture_bake_object_space_normal_map(cr_Texture *in,
     cr_Vec3 n;                                                                 \
     if (!CR_CFG_NO_BFCULL) { /*  known at compile time, this will get          \
                           inlined*/                                            \
-      n = cr_Vec3_normalized(                                                  \
-          cr_Vec3_cross(cr_Vec3_sub(raw_tri.v2, raw_tri.v0),                   \
-                        cr_Vec3_sub(raw_tri.v1, raw_tri.v0)));                 \
+      n = cr_Vec3_cross(cr_Vec3_sub(raw_tri.v2, raw_tri.v0),                   \
+                        cr_Vec3_sub(raw_tri.v1, raw_tri.v0));                  \
       cr_num intensity = cr_Vec3_dot(n, ldir);                                 \
       if (intensity <= 0) {                                                    \
         return false;                                                          \
@@ -366,11 +365,11 @@ cr_Texture cr_Texture_bake_object_space_normal_map(cr_Texture *in,
         }                                                                      \
         cr_num z = iw0 * b.x + iw1 * b.y + iw2 * b.z;                          \
         int zbuffix = x + y * tw;                                              \
-        CR_IFOMPLOCK(omp_lock_t * lock);                                       \
-        CR_IFOMPLOCK(lock = &zbuffer_locks[zbuffix]);                          \
-        CR_IFOMPLOCK(omp_set_lock(lock));                                      \
                                                                                \
         if (zbuffer[zbuffix] < z) {                                            \
+          CR_IFOMPLOCK(omp_lock_t * lock);                                     \
+          CR_IFOMPLOCK(lock = &zbuffer_locks[zbuffix]);                        \
+          CR_IFOMPLOCK(omp_set_lock(lock));                                    \
           cr_Vec3 normal;                                                      \
           zbuffer[zbuffix] = z;                                                \
           cr_Vec3 uv =                                                         \
@@ -385,8 +384,8 @@ cr_Texture cr_Texture_bake_object_space_normal_map(cr_Texture *in,
           }                                                                    \
           cr_num d = cr_Vec3_dot(normal, ldir);                                \
           _cr_Texture_shader_##SHADING_MODE(SAMPLING_MODE, 0);                 \
+          CR_IFOMPLOCK(omp_unset_lock(lock));                                  \
         }                                                                      \
-        CR_IFOMPLOCK(omp_unset_lock(lock));                                    \
         cr_Vec3_ADD_INPLACE(b, deltax);                                        \
       }                                                                        \
       cr_Vec3_ADD_INPLACE(bbase, deltay);                                      \

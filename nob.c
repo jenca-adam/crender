@@ -62,7 +62,7 @@
 #undef CURRENT_PLATFORM
 #define CURRENT_PLATFORM WIN_MSVC
 #endif
-#ifdef _WINDOWS_
+#if defined(_WINDOWS_) || defined(_WIN32)
 // michealsoft binbows
 static int ascii_tolower(int c) {
   return (c >= 'A' && c <= 'Z') ? (c - 'A' + 'a') : c;
