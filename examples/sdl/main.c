@@ -5,7 +5,7 @@
 #include <stdio.h>
 #define WIN_WIDTH 800
 #define WIN_HEIGHT 800
-#define RENDER_SAMPLE 1.0f
+#define RENDER_SAMPLE 0.5f
 #define DEPTH 0
 #define CAM_Z 3
 #define ROTATEY 1
@@ -188,13 +188,13 @@ int main(int argc, char *argv[]) {
           delta_trans.y = TY;
           break;
         case 'm':
-          scene.settings.shading_mode = scene.settings.shading_mode == PHONG ? GOURAUD : PHONG;
+          scene.settings.shading_mode = (scene.settings.shading_mode+1)%SHADING_MODE_COUNT;
           break;
         case 'n':
           scene.settings.use_normal_map = !scene.settings.use_normal_map;
           break;
         case 'b':
-          scene.settings.sampling_mode = (scene.settings.sampling_mode + 1)%3;
+          scene.settings.sampling_mode = (scene.settings.sampling_mode + 1)%SAMPLING_MODE_COUNT;
           break;
         case 't':
           using_other = !using_other;

@@ -285,12 +285,18 @@ cr_Texture cr_Texture_bake_object_space_normal_map(cr_Texture *in,
   texture[(int)(tw * (th - y - 1) + x)] =                                      \
       cr_Vec3_pack_color(cr_Vec3_mul(color, fmax(d, 0.0)));
 
+#define _cr_Texture_shader_TOON(SAMPLING_MODE, ...)                            \
+  (void)specular_map;                                                          \
+  cr_num steps = 4.0;                                                          \
+  cr_num quantized = floorf(fmax(d, 0.0) * steps) / steps;                     \
+  cr_num outline = (cr_Vec3_dot(normal, ldir) > -0.3) ? 1.0 : 0.0;             \
+  texture[(int)(tw * (th - y - 1) + x)] =                                      \
+      cr_Vec3_pack_color(cr_Vec3_mul(color, quantized * outline));
+
 #define _cr_Texture_draw_face_IMPL(SHADING_MODE, SAMPLING_MODE,                \
                                    HAS_NORMAL_MAP)                             \
   _cr_Texture_draw_face_DECL(SHADING_MODE, SAMPLING_MODE, HAS_NORMAL_MAP) {    \
     (void)zbuffer_locks;                                                       \
-    cr_Vec3 l = cr_Vec3_transform_dir(light_dir, inverse_transform);           \
-    cr_Vec3 ldir = cr_Vec3_normalized(l);                                      \
     cr_Triangle raw_tri, uvs, vns;                                             \
     cr_Face_gettri(face, obj, VERTEX, &raw_tri);                               \
     cr_Face_gettri(face, obj, UV, &uvs);                                       \
@@ -317,7 +323,10 @@ cr_Texture cr_Texture_bake_object_space_normal_map(cr_Texture *in,
     cr_num x0 = tri.v0.x, y0 = tri.v0.y;                                       \
     cr_num x1 = tri.v1.x, y1 = tri.v1.y;                                       \
     cr_num x2 = tri.v2.x, y2 = tri.v2.y;                                       \
-    cr_num bary_denom = 1 / ((x2 - x0) * (y1 - y0) - (x1 - x0) * (y2 - y0));   \
+    cr_num bary_denom1 = ((x2 - x0) * (y1 - y0) - (x1 - x0) * (y2 - y0));      \
+    if (fabs(bary_denom1) < cr_EPSILON)                                        \
+      return false;                                                            \
+    cr_num bary_denom = 1 / bary_denom1;                                       \
     cr_num tw = width;                                                         \
     cr_num th = height;                                                        \
     int minx = fmax(0, cr_fmin3(x0, x1, x2));                                  \
@@ -342,27 +351,22 @@ cr_Texture cr_Texture_bake_object_space_normal_map(cr_Texture *in,
     cr_num rayy = deltax.y != 0 ? (cr_num)1.0 / deltax.y : 0;                  \
     cr_num rayz = deltax.z != 0 ? (cr_num)1.0 / deltax.z : 0;                  \
     for (int y = miny; y <= maxy; y++) {                                       \
-      /*cr_Vec3 b = bbase; \*/                                                 \
+      cr_Vec3 b = bbase;                                                       \
       /* compute the bounds from barycentric coordinates*/                     \
-      cr_Vec3 b = cr_barycentric(tri.v0, tri.v1, tri.v2, minx, y, bary_denom); \
       cr_num tx = (-b.x * rayx), ty = (-b.y * rayy), tz = (-b.z * rayz);       \
       cr_num tinx = cr_clamplo(copysign(tx, -b.x), 0);                         \
       cr_num tiny = cr_clamplo(copysign(ty, -b.y), 0);                         \
       cr_num tinz = cr_clamplo(copysign(tz, -b.z), 0);                         \
+      cr_num toutx = b.x * rayx;                                               \
+      cr_num touty = b.y * rayy;                                               \
+      cr_num toutz = b.z * rayz;                                               \
+      cr_num toutx_f = deltax.x < 0 ? copysign(toutx, b.x) : (cr_num)FLT_MAX;  \
+      cr_num touty_f = deltax.y < 0 ? copysign(touty, b.y) : (cr_num)FLT_MAX;  \
+      cr_num toutz_f = deltax.z < 0 ? copysign(toutz, b.z) : (cr_num)FLT_MAX;  \
       int tin = ceilf(cr_fmax3(tinx, tiny, tinz));                             \
+      int tout = floorf(cr_fmin3(toutx_f, touty_f, toutz_f));                  \
       cr_Vec3_ADD_INPLACE3(b, deltax.x * tin, deltax.y * tin, deltax.z * tin); \
-      for (int x = minx + tin; x <= maxx; x++) {                               \
-        cr_NUM_INT_TYPE ibx, iby, ibz;                                         \
-        cr_num bx_eb = b.x + cr_EPSILON;                                       \
-        cr_num by_eb = b.y + cr_EPSILON;                                       \
-        cr_num bz_eb = b.z + cr_EPSILON;                                       \
-        cr_NUM_INT_CAST(bx_eb, ibx);                                           \
-        cr_NUM_INT_CAST(by_eb, iby);                                           \
-        cr_NUM_INT_CAST(bz_eb, ibz);                                           \
-        cr_NUM_INT_TYPE inside = ibx | iby | ibz;                              \
-        if (inside < 0) {                                                      \
-          break;                                                               \
-        }                                                                      \
+      for (int x = minx + tin; x <= cr_MIN(minx + tout, maxx); x++) {          \
         cr_num z = iw0 * b.x + iw1 * b.y + iw2 * b.z;                          \
         int zbuffix = x + y * tw;                                              \
                                                                                \

@@ -63,7 +63,7 @@ bool dump_crender_cfg_h(char *path) {
     return false;
   }
   fprintf(fp, "#ifndef _CRENDER_CFG_H\n#define _CRENDER_CFG_H\n");
-  fprintf(fp, "#define CR_CFG_NO_BFCULL 1\n");
+  fprintf(fp, "#define CR_CFG_NO_BFCULL 0\n");
 #ifdef FLOAT_F64
   fprintf(fp, "#define CR_CFG_NUM_DOUBLE 1\n");
 #endif

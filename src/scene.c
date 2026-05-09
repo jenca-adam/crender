@@ -165,7 +165,7 @@ int cr_Scene_resize(cr_Scene *s, size_t new_width, size_t new_height) {
     zbuffer[i] = -FLT_MAX;
   }
   s->zbuffer = zbuffer;
-#if !CR_CFG_NO_MULTITHREAD
+#if !CR_CFG_NO_MULTITHREAD && !CR_CFG_NO_LOCK
   if (s->zbuffer_locks) {
     for (size_t i = 0; i < old_res; i++) {
       omp_destroy_lock(&s->zbuffer_locks[i]);
@@ -255,14 +255,18 @@ void cr_Scene_render(cr_Scene *s, int num_threads) {
     cr_Matrix cam = cr_Matrix_matmul(s->model_view, entity.transform);
     cr_Matrix inv =
         cr_Matrix_matmul(entity.inverse_transform, s->inverse_model_view);
+
+    cr_Vec3 l = cr_Vec3_transform_dir(light_dir, inv);
+    cr_Vec3 ldir = cr_Vec3_normalized(l);
 #if !CR_CFG_NO_MULTITHREAD
-#pragma omp parallel for schedule(cr_SCHEDULE)
+#pragma omp parallel for schedule(cr_SCHEDULE, 1024)
 #endif
+
     for (size_t fi = 0; fi < ob->faces.count; fi++) {
       cr_Face *face = &ob->faces.items[fi];
       cr_Texture_draw_face(framebuffer, rw, rh, face, entity.ob, diffuse,
                            normal_map, specular_map, zbuffer, zbuffer_locks,
-                           light_dir, t, cam, inv, near_plane);
+                           ldir, t, cam, near_plane);
     }
     cr_Matrix_dealloc(&t);
     cr_Matrix_dealloc(&cam);

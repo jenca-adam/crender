@@ -41,6 +41,7 @@ typedef float cr_num;
 #define cr_NUM_FMT "%f"
 #define cr_NUM_INT_TYPE int32_t
 #endif
+#define cr_MIN(a, b) (a < b ? a : b)
 #define cr_NUM_INT_CAST(a, b) memcpy(&b, &a, sizeof(cr_NUM_INT_TYPE))
 #define cr_ABORT(t, fmt, ...)                                                  \
   do {                                                                         \
@@ -86,8 +87,8 @@ typedef float cr_num;
   (cr_Linear_Texture texture, int width, int height, cr_Face *face,            \
    cr_Object *obj, cr_Texture *diffuse, cr_Texture *normal_map,                \
    cr_Texture *specular_map, cr_num *zbuffer, omp_lock_t *zbuffer_locks,       \
-   cr_Vec3 light_dir, cr_Matrix transform, cr_Matrix world_transform,          \
-   cr_Matrix inverse_transform, cr_num near_plane)
+   cr_Vec3 ldir, cr_Matrix transform, cr_Matrix world_transform,               \
+   cr_num near_plane)
 
 #define _cr_Texture_draw_face_DECL(SHADING_MODE, SAMPLING_MODE,                \
                                    HAS_NORMAL_MAP)                             \
@@ -97,7 +98,8 @@ typedef float cr_num;
   _cr_Texture_draw_face_DECL(__VA_ARGS__);
 #define _cr_Texture_draw_face_FORALL1(XMACRO)                                  \
   XMACRO(GOURAUD)                                                              \
-  XMACRO(PHONG)
+  XMACRO(PHONG)                                                                \
+  XMACRO(TOON)
 #define _cr_Texture_draw_face_FORALL2(XMACRO)                                  \
   XMACRO(FLOOR)                                                                \
   XMACRO(CLOSEST)                                                              \
@@ -118,7 +120,13 @@ typedef float cr_num;
   XMACRO(PHONG, CLOSEST, 0)                                                    \
   XMACRO(PHONG, CLOSEST, 1)                                                    \
   XMACRO(PHONG, LINEAR, 0)                                                     \
-  XMACRO(PHONG, LINEAR, 1)
+  XMACRO(PHONG, LINEAR, 1)                                                     \
+  XMACRO(TOON, FLOOR, 0)                                                       \
+  XMACRO(TOON, FLOOR, 1)                                                       \
+  XMACRO(TOON, CLOSEST, 0)                                                     \
+  XMACRO(TOON, CLOSEST, 1)                                                     \
+  XMACRO(TOON, LINEAR, 0)                                                      \
+  XMACRO(TOON, LINEAR, 1)
 #define _cr_Texture_draw_face_HANDLE(SHADING, SAMPLING, NORMAL)                \
   return _cr_Texture_draw_face_NAME(SHADING, SAMPLING, NORMAL);
 #define _cr_Texture_draw_face_NORMAL_CASES(SHADING, SAMPLING)                  \
@@ -145,6 +153,9 @@ typedef float cr_num;
     break;                                                                     \
   case PHONG:                                                                  \
     switch (sampling_mode) { _cr_Texture_draw_face_SAMPLING_CASES(PHONG) }     \
+    break;                                                                     \
+  case TOON:                                                                   \
+    switch (sampling_mode) { _cr_Texture_draw_face_SAMPLING_CASES(TOON) }      \
     break;
 
 #define _cr_Texture_draw_face_SELECT                                           \
@@ -204,11 +215,14 @@ extern bool cr_crender_initted;
 typedef enum cr_ShadingMode {
   PHONG = 0,   // slower, specular highlights
   GOURAUD = 1, // faster, no specular highlights
+  TOON = 2,    // cute
+  SHADING_MODE_COUNT,
 } cr_ShadingMode;
 typedef enum cr_SamplingMode {
   FLOOR = 0,   // worst, fastest
   CLOSEST = 1, // marginally better and equally marginally slower
   LINEAR = 2,  // best, slowest
+  SAMPLING_MODE_COUNT
 } cr_SamplingMode;
 
 typedef struct cr_Vec2 {
@@ -562,6 +576,7 @@ _cr_Texture_draw_face_FORALL(_cr_Texture_draw_face_DECLH)
 // end of the interesting part
 
 #ifdef cr_STRIP_SYMS
+#define MIN cr_MIN
 #define EPSILON cr_EPSILON
 #define VIEWPORT_DEPTH cr_VIEWPORT_DEPTH
 #define AMBIENT cr_AMBIENT
