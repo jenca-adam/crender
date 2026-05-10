@@ -218,11 +218,13 @@ void cr_Scene_render(cr_Scene *s, int num_threads) {
     cr_Scene_update_settings(s);
   }
 
+  cr_Camera camera = s->settings.camera;
   cr_Linear_Texture framebuffer = s->framebuffer;
   cr_Vec3 light_dir = s->settings.light_dir;
   cr_ShadingMode shading_mode = s->settings.shading_mode;
   cr_SamplingMode sampling_mode = s->settings.sampling_mode;
-  cr_num near_plane = s->settings.camera.near_plane;
+  cr_num near_plane = camera.near_plane;
+  cr_Vec3 view_dir = cr_Vec3_normalized(cr_Vec3_sub(camera.center, camera.eye));
   cr_num *zbuffer = s->zbuffer;
   omp_lock_t *zbuffer_locks = s->zbuffer_locks;
   cr_num rw = s->settings.render_width, rh = s->settings.render_height;
@@ -232,6 +234,7 @@ void cr_Scene_render(cr_Scene *s, int num_threads) {
 #else
   (void)num_threads;
 #endif
+
   for (size_t i = 0; i < s->entities.count; i++) {
     cr_Entity entity = *s->entities.items[i];
     cr_Object *ob = entity.ob;
@@ -258,6 +261,8 @@ void cr_Scene_render(cr_Scene *s, int num_threads) {
 
     cr_Vec3 l = cr_Vec3_transform_dir(light_dir, inv);
     cr_Vec3 ldir = cr_Vec3_normalized(l);
+    cr_Vec3 v = cr_Vec3_transform_dir(view_dir, inv);
+    cr_Vec3 vdir = cr_Vec3_normalized(v);
 #if !CR_CFG_NO_MULTITHREAD
 #pragma omp parallel for schedule(cr_SCHEDULE, 1024)
 #endif
@@ -266,7 +271,7 @@ void cr_Scene_render(cr_Scene *s, int num_threads) {
       cr_Face *face = &ob->faces.items[fi];
       cr_Texture_draw_face(framebuffer, rw, rh, face, entity.ob, diffuse,
                            normal_map, specular_map, zbuffer, zbuffer_locks,
-                           ldir, t, cam, near_plane);
+                           ldir, t, cam, near_plane, vdir);
     }
     cr_Matrix_dealloc(&t);
     cr_Matrix_dealloc(&cam);

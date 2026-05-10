@@ -286,17 +286,21 @@ cr_Texture cr_Texture_bake_object_space_normal_map(cr_Texture *in,
       cr_Vec3_pack_color(cr_Vec3_mul(color, fmax(d, 0.0)));
 
 #define _cr_Texture_shader_TOON(SAMPLING_MODE, ...)                            \
-  (void)specular_map;                                                          \
   cr_num steps = 4.0;                                                          \
   cr_num quantized = floorf(fmax(d, 0.0) * steps) / steps;                     \
-  cr_num outline = (cr_Vec3_dot(normal, ldir) > -0.3) ? 1.0 : 0.0;             \
-  texture[(int)(tw * (th - y - 1) + x)] =                                      \
-      cr_Vec3_pack_color(cr_Vec3_mul(color, quantized * outline));
+  cr_num specpow = cr_clamphi(                                                 \
+      cr_Texture_getuv_##SAMPLING_MODE(specular_map, uv).x * 1, 255);          \
+  cr_num spec = apow(fmax(d, 0.0), specpow);                                   \
+  cr_num hard_spec = spec > 0.5 ? 0.5 : 0.0;                                   \
+  texture[(int)(tw * (th - y - 1) + x)] = cr_Vec3_pack_color_clamp(            \
+      cr_Vec3_add(cr_Vec3_mul(color, quantized * (1 - hard_spec)),             \
+                  cr_Vec3_mul(cr_WHITE, hard_spec)));
 
 #define _cr_Texture_draw_face_IMPL(SHADING_MODE, SAMPLING_MODE,                \
                                    HAS_NORMAL_MAP)                             \
   _cr_Texture_draw_face_DECL(SHADING_MODE, SAMPLING_MODE, HAS_NORMAL_MAP) {    \
     (void)zbuffer_locks;                                                       \
+    (void)vdir;                                                                \
     cr_Triangle raw_tri, uvs, vns;                                             \
     cr_Face_gettri(face, obj, VERTEX, &raw_tri);                               \
     cr_Face_gettri(face, obj, UV, &uvs);                                       \

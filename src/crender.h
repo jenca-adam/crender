@@ -88,7 +88,7 @@ typedef float cr_num;
    cr_Object *obj, cr_Texture *diffuse, cr_Texture *normal_map,                \
    cr_Texture *specular_map, cr_num *zbuffer, omp_lock_t *zbuffer_locks,       \
    cr_Vec3 ldir, cr_Matrix transform, cr_Matrix world_transform,               \
-   cr_num near_plane)
+   cr_num near_plane, cr_Vec3 vdir)
 
 #define _cr_Texture_draw_face_DECL(SHADING_MODE, SAMPLING_MODE,                \
                                    HAS_NORMAL_MAP)                             \
@@ -237,7 +237,9 @@ typedef struct cr_Vec3 {
 typedef struct cr_Vec4 {
   cr_num x, y, z, w;
 } cr_Vec4;
-
+#define cr_Vec3_ZERO (cr_Vec3){0, 0, 0}
+#define cr_WHITE (cr_Vec3){255, 255, 255}
+#define cr_BLACK cr_Vec3_ZERO
 typedef struct cr_Matrix {
   cr_num **m;
   int rows;
@@ -248,6 +250,7 @@ static inline cr_num cr_clamp(cr_num a, cr_num lo, cr_num hi) {
   return fminf(fmaxf(a, lo), hi);
 }
 static inline cr_num cr_clamplo(cr_num a, cr_num lo) { return fmaxf(a, lo); }
+static inline cr_num cr_clamphi(cr_num a, cr_num hi) { return fminf(a, hi); }
 static inline cr_Vec2 cr_Vec2_create(cr_num x, cr_num y) {
   return (cr_Vec2){x, y};
 }
@@ -301,7 +304,7 @@ static inline cr_Vec3 cr_Vec3_from_matrix(cr_Matrix mat) {
 static inline cr_Vec3 cr_Vec3_from_matrix3(cr_Matrix mat) {
   return cr_Vec3_create(mat.m[0][0], mat.m[1][0], mat.m[2][0]);
 }
-static inline uint32_t cr__pack(int r, int g, int b) {
+static inline uint32_t cr__pack(uint8_t r, uint8_t g, uint8_t b) {
   return 0xff << 24 | b << 16 | g << 8 | r;
 }
 static inline uint32_t cr_Vec3_phong(cr_Vec3 v1, cr_num a, cr_num lo,
@@ -315,7 +318,10 @@ static inline uint32_t cr_Vec3_phong(cr_Vec3 v1, cr_num a, cr_num lo,
 static inline uint32_t cr_Vec3_pack_color(cr_Vec3 v) {
   return cr__pack(v.x, v.y, v.z);
 }
-
+static inline uint32_t cr_Vec3_pack_color_clamp(cr_Vec3 v) {
+  return cr__pack(cr_clamp(v.x, 0, 255), cr_clamp(v.y, 0, 255),
+                  cr_clamp(v.z, 0, 255));
+}
 static inline cr_Vec3 cr_Vec3_normal_from_color(cr_Vec3 color) {
   return (cr_Vec3){-(color.x / (cr_num)127.5) + 1,
                    -(color.y / (cr_num)127.5) + 1,
@@ -594,6 +600,7 @@ _cr_Texture_draw_face_FORALL(_cr_Texture_draw_face_DECLH)
 #define DYNARR_DEALLOC cr_DYNARR_DEALLOC
 #define clamp cr_clamp
 #define clamplo cr_clamplo
+#define clamphi cr_clamphi
 #define Vec3_ADD_INPLACE3 cr_Vec3_ADD_INPLACE3
 #define Vec3_ADD_INPLACE cr_Vec3_ADD_INPLACE
 #define Vec3_NEG_INPLACE cr_Vec3_NEG_INPLACE

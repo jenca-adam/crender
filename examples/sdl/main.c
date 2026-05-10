@@ -76,7 +76,7 @@ int main(int argc, char *argv[]) {
   int width = WIN_WIDTH * RENDER_SAMPLE;
   int height = WIN_HEIGHT * RENDER_SAMPLE;
   const num cam_z = CAM_Z;
-  Vec3 bg = {0, 0, 0};
+  Vec3 bg = {128, 128, 128};
   if (argc < 2) {
     fprintf(stderr, "provide object directory (e.g. obj/head)\n");
     return 1;
